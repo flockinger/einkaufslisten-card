@@ -335,7 +335,7 @@ def _sig(values: dict[str, Any]) -> str:
 
 
 def _unique_items(manager: EinkaufslisteManager, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Zutaten, die nach Spitznamen & Co. gleich heißen würden, bekommen „, 2“ / „Nr. 2“ – sonst lehnt das Rezept sie ab."""
+    """Zutaten, die nach Spitznamen & Co. gleich heißen würden, bekommen den Mealie-Namen als Notiz (sonst „Nr. 2“) – sonst lehnt das Rezept sie ab."""
     out: list[dict[str, Any]] = []
     for item in items:
         cand = dict(item)
@@ -348,7 +348,10 @@ def _unique_items(manager: EinkaufslisteManager, items: list[dict[str, Any]]) ->
                 if "doppelt" not in str(err) or n >= 50:
                     raise
                 n += 1
-                cand["note"] = f"{item['note']}, {n}" if item.get("note") else f"Nr. {n}"
+                if n == 2 and item.get("name"):  # erst der ursprüngliche Name aus Mealie („Geriebenen Cheddar“) als Notiz
+                    cand["note"] = f"{item['name']}, {item['note']}" if item.get("note") else item["name"]
+                else:
+                    cand["note"] = f"{item['note']}, {n}" if item.get("note") else f"Nr. {n}"
         out.append(cand)
     return out
 

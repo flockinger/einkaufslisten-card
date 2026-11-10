@@ -5336,4 +5336,4 @@ async def test_mealie_import_alias_duplicates(hass, setup, hass_ws_client, aiocl
     assert res["result"]["added"] == 1 and res["result"]["failed"] == 1, res
     assert res["result"]["failed_info"][0]["slug"] == "weg" and res["result"]["failed_info"][0]["reason"]
     rec = next(r for r in m.recipes if r["name"] == "Risotto")
-    assert sorted((i["name"], i["note"] or "") for i in rec["items"]) == [("Cheddar", ""), ("Cheddar", "Nr. 2")]
+    assert sorted((i["name"], i["note"] or "") for i in rec["items"]) == [("Cheddar", ""), ("Cheddar", "Geriebener Cheddar")]
