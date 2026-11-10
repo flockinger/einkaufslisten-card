@@ -8380,7 +8380,7 @@ ${(() => {
     return `<div class="xaccs">
       ${this._acc("xferm", "conn", "mdi:link-variant", "#ef6c00", "Verbindung", "Adresse und API-Token von Mealie", `
       <div class="syncbox">
-      <p class="hint"><b>🍲 Aus Mealie</b><span>: Holt deine Rezepte aus Mealie – mit Zutaten (Menge, Einheit), Zubereitung, Portionen, Dauer, Link und Foto. Es wird nur gelesen, in Mealie ändert sich nichts. Rezepte, die es hier schon unter dem gleichen Namen gibt, werden übersprungen.</span></p>
+      <p class="hint"><b>🍲 Aus Mealie</b><span>: Holt deine Rezepte aus Mealie – mit Zutaten (Menge, Einheit), Zubereitung, Portionen, Dauer, Link und Foto. Es wird nur gelesen, in Mealie ändert sich nichts. Rezepte, die es hier schon gibt, werden normalerweise übersprungen – oder auf Wunsch aktualisiert.</span></p>
       <ul class="hint xferfmt">
         <li>In Mealie: oben auf dein Profil → API-Token → neues Token anlegen und kopieren.</li>
         <li>Die Adresse ist die, mit der du Mealie im Browser öffnest (z. B. http://192.168.1.20:9000 oder https://mealie.example.org). Home Assistant muss Mealie erreichen können.</li>
@@ -8432,6 +8432,9 @@ ${(() => {
       <div class="grocylist" id="mealieList">${this._mealieListHtml()}</div>
       ${m.more ? `<p class="hint">… und ${m.more} weitere, die nicht geladen wurden.</p>` : ""}
       <label class="favrow"><input type="checkbox" id="mealiePhotos" data-act="mealie-photos" ${m.photos ? "checked" : ""}> Fotos mit übernehmen</label>
+      <label class="favrow"><input type="checkbox" data-act="mealie-upd" ${m.mode !== "skip" ? "checked" : ""}> Schon vorhandene aktualisieren</label>
+      ${m.mode !== "skip" ? `<label class="favrow" style="margin-left:22px"><input type="checkbox" data-act="mealie-ovr" ${m.mode === "overwrite" ? "checked" : ""}> Auch Rezepte überschreiben, die ich hier selbst geändert habe</label>
+      <p class="hint">Aktualisiert wird nur, was sich in Mealie geändert hat. Symbol, Gruppe, Wochenplan und Notizen bleiben, Rezepte, die du hier selbst bearbeitet hast, bleiben unangetastet.</p>` : ""}
       <div class="btnrow"><button class="btn primary" data-act="mealie-go" id="mealieGo" ${n ? "" : "disabled"}><ha-icon icon="mdi:import"></ha-icon>${n} Rezepte übernehmen</button></div>`;
   }
 
@@ -8481,7 +8484,7 @@ ${(() => {
     if (out) out.innerHTML = `<p class="hint">⏳ Hole Rezepte aus Mealie …</p>`;
     try {
       const res = await this._ws({ type: "einkaufsliste/mealie/preview", ...c });
-      this._mealie = { ...res, on: new Set(res.rows.filter((r) => !r.exists).map((r) => r.slug)), photos: true };
+      this._mealie = { ...res, on: new Set(res.rows.filter((r) => !r.exists).map((r) => r.slug)), photos: true, mode: "skip" };
       this._mealieFilter = "";
     } catch (_) { this._mealie = null; if (out) out.innerHTML = ""; return; }
     this._xferResult("");
@@ -8494,20 +8497,22 @@ ${(() => {
     if (!m || !m.on.size) return;
     const c = this._mealieConn();
     const slugs = [...m.on];
-    const total = { added: 0, exists: 0, failed: 0, photos: 0, names: [] };
+    const total = { added: 0, updated: 0, unchanged: 0, kept: 0, exists: 0, failed: 0, photos: 0, names: [], updatedNames: [], keptNames: [] };
     const go = this.$("mealieGo");
     if (go) go.disabled = true;
     try {
       for (let i = 0; i < slugs.length; i += 20) { // in kleinen Päckchen: jedes Rezept braucht eine eigene Abfrage bei Mealie
         this._xferResult(`<p class="hint">⏳ ${Math.min(i + 20, slugs.length)} / ${slugs.length} …</p>`);
-        const res = await this._ws({ type: "einkaufsliste/mealie/import", slugs: slugs.slice(i, i + 20), photos: m.photos, ...c });
-        total.added += res.added; total.exists += res.exists; total.failed += res.failed; total.photos += res.photos; total.names.push(...res.names);
+        const res = await this._ws({ type: "einkaufsliste/mealie/import", slugs: slugs.slice(i, i + 20), photos: m.photos, mode: m.mode || "skip", ...c });
+        total.added += res.added; total.updated += res.updated || 0; total.unchanged += res.unchanged || 0; total.kept += res.kept || 0; total.exists += res.exists; total.failed += res.failed; total.photos += res.photos;
+        total.names.push(...res.names); total.updatedNames.push(...(res.updated_names || [])); total.keptNames.push(...(res.kept_names || []));
       }
     } catch (_) { /* Meldung kam schon */ }
-    const done = new Set(total.names.map((x) => x.toLowerCase()));
+    const done = new Set([...total.names, ...total.updatedNames].map((x) => x.toLowerCase()));
     for (const r of m.rows) if (done.has(r.name.toLowerCase())) { r.exists = true; m.on.delete(r.slug); }
-    this._toast(total.added ? `🍲 ${total.added} ${total.added === 1 ? "Rezept" : "Rezepte"} übernommen` : "Nichts übernommen 🤷");
-    this._xferResult(`<p class="hint"><span>✅ ${total.added} übernommen</span>${total.exists ? `<span>, ${total.exists} gab es schon</span>` : ""}${total.photos ? `<span> · Fotos: ${total.photos}</span>` : ""}${total.failed ? `<span> · ${total.failed} nicht möglich (siehe Fehler-Protokoll)</span>` : ""}.</p>${total.names.length ? `<ul class="hint">${total.names.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}`);
+    const nTouched = total.added + total.updated;
+    this._toast(nTouched ? `🍲 ${total.added} neu · ${total.updated} aktualisiert` : "Nichts verändert 🤷");
+    this._xferResult(`<p class="hint"><span>✅ ${total.added} neu übernommen</span>${total.updated ? `<span>, ${total.updated} aktualisiert</span>` : ""}${total.unchanged ? `<span>, ${total.unchanged} unverändert</span>` : ""}${total.kept ? `<span>, ${total.kept} von dir geändert (nicht angefasst)</span>` : ""}${total.exists ? `<span>, ${total.exists} gab es schon</span>` : ""}${total.photos ? `<span> · Fotos: ${total.photos}</span>` : ""}${total.failed ? `<span> · ${total.failed} nicht möglich (siehe Fehler-Protokoll)</span>` : ""}.</p>${total.names.length + total.updatedNames.length ? `<ul class="hint">${total.names.map((x) => `<li>${esc(x)}</li>`).join("")}${total.updatedNames.map((x) => `<li>🔄 ${esc(x)}</li>`).join("")}</ul>` : ""}${total.keptNames.length ? `<p class="hint"><span>Nicht überschrieben, weil du sie hier geändert hast:</span></p><ul class="hint">${total.keptNames.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}`);
     const o2 = this.$("mealieOut");
     if (o2) o2.innerHTML = this._mealieOutHtml();
   }
@@ -15274,6 +15279,16 @@ ${S(".rzh")}{margin-top:3px;color:#e65100;font-size:12px}`;
         break;
       case "mealie-photos":
         if (this._mealie) this._mealie.photos = el.checked;
+        break;
+      case "mealie-upd":
+      case "mealie-ovr":
+        if (this._mealie) {
+          const m = this._mealie;
+          m.mode = act === "mealie-upd" ? (el.checked ? "update" : "skip") : (el.checked ? "overwrite" : "update");
+          if (act === "mealie-upd") for (const r of m.rows) { if (r.exists) { if (el.checked) m.on.add(r.slug); else m.on.delete(r.slug); } }
+          const o = this.$("mealieOut");
+          if (o) o.innerHTML = this._mealieOutHtml();
+        }
         break;
       case "xfer-todo": {
         const entity_id = this.$("xferTodo")?.value;

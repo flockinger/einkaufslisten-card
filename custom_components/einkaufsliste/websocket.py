@@ -1697,9 +1697,9 @@ async def ws_mealie_preview(hass, connection, msg):
     except ValueError as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
-    have = {r["name"].lower() for r in manager.recipes} if manager is not None else set()
+    recipes = manager.recipes if manager is not None else []
     for row in res["rows"]:
-        row["exists"] = row["name"].lower() in have
+        row["exists"] = mealie_import.find_linked(recipes, row.get("id", ""), row["name"]) is not None
     connection.send_result(msg["id"], res)
 
 
@@ -1708,6 +1708,7 @@ async def ws_mealie_preview(hass, connection, msg):
         vol.Required("type"): "einkaufsliste/mealie/import",
         vol.Required("slugs"): vol.All([vol.All(str, vol.Length(max=200))], vol.Length(max=mealie_import.MAX_IMPORT)),
         vol.Optional("photos", default=True): bool,
+        vol.Optional("mode", default="skip"): vol.In(["skip", "update", "overwrite"]),
         **_MEALIE_CONN,
     }
 )
@@ -1718,7 +1719,7 @@ async def ws_mealie_import(hass, connection, msg):
     manager = _manager(hass)
     url, token, verify = _mealie_conn(manager, msg)
     cfg = {"url": url, "token": token, "verify_ssl": verify}
-    await _run_async(hass, connection, msg, lambda m: mealie_import.async_import(hass, m, cfg, msg["slugs"], msg["photos"]))
+    await _run_async(hass, connection, msg, lambda m: mealie_import.async_import(hass, m, cfg, msg["slugs"], msg["photos"], msg["mode"]))
 
 
 @websocket_api.websocket_command(

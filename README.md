@@ -254,7 +254,7 @@ Danach unter **Rezepte holen**: **Rezepte aus Mealie holen**, in der Liste filte
 - 🥕 **Zutaten** mit Menge, Einheit und Notiz (Freitext-Zeilen werden wie beim Rezept-Einfügen zerlegt) – und welche Zutaten zu welchem Schritt gehören.
 - 👨‍🍳 **Zubereitung** (ein Schritt pro Zeile, Markdown wird geglättet), **Portionen**, **Dauer**, der **Link** zum Originalrezept und auf Wunsch das **Foto**.
 
-Was es hier schon unter dem gleichen Namen gibt, wird übersprungen, in Mealie wird nichts verändert (es wird nur gelesen). Das Token liegt nur auf dem Server (nie auf Handys, nie in Sicherungen); „Verbindung entfernen“ löscht es wieder. 🔒 Nur Admins; Home Assistant muss Mealie erreichen können. *Hinweis: gebaut für die Mealie-API ab Version 2 (getestet gegen Version 3).*
+Was es hier schon gibt, wird übersprungen. Mit „Schon vorhandene aktualisieren“ wird es stattdessen auf den Stand von Mealie gebracht – aber nur, wenn sich dort etwas geändert hat (auch bei umbenannten Rezepten, das Rezept wird über seine Mealie-Kennung erkannt). Symbol, Gruppe, Wochenplan und Notizen bleiben; Rezepte, die du hier selbst bearbeitet hast, bleiben unangetastet, außer du hakst „Auch Rezepte überschreiben, die ich hier selbst geändert habe“ an. In Mealie wird nichts verändert (es wird nur gelesen). Das Token liegt nur auf dem Server (nie auf Handys, nie in Sicherungen); „Verbindung entfernen“ löscht es wieder. 🔒 Nur Admins; Home Assistant muss Mealie erreichen können. *Hinweis: gebaut für die Mealie-API ab Version 2 (getestet gegen Version 3).*
 
 </details>
 

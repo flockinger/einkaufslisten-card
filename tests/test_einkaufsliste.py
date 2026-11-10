@@ -5260,3 +5260,61 @@ async def test_mealie_errors(hass, setup, hass_ws_client, aioclient_mock):
     assert "Token" in (await client.receive_json())["error"]["message"]
     await client.send_json({"id": 10, "type": "einkaufsliste/mealie/preview", "url": "", "token": ""})
     assert not (await client.receive_json())["success"]  # nichts getippt und nichts gespeichert
+
+
+async def test_mealie_update(hass, setup, hass_ws_client, aioclient_mock):
+    """🍲 Mealie: Vorhandene aktualisieren – nur wenn sich in Mealie etwas ändert, eigene Änderungen bleiben geschützt."""
+    m = mgr(hass)
+    client = await hass_ws_client(hass)
+    base = "https://mealie.lan/api"
+    conn = {"url": "https://mealie.lan", "token": "T"}
+    n = 0
+
+    async def imp(slug, mode, **extra):
+        nonlocal n
+        n += 1
+        await client.send_json({"id": n, "type": "einkaufsliste/mealie/import", "slugs": [slug], "photos": False, "mode": mode, **conn, **extra})
+        res = await client.receive_json()
+        assert res["success"], res
+        return res["result"]
+
+    aioclient_mock.get(f"{base}/recipes/lasagne", json=_mealie_recipe())
+    # neu angelegt, mit Merkzettel zu Mealie
+    res = await imp("lasagne", "update")
+    assert res["added"] == 1 and res["updated"] == 0
+    rec = m.recipes[-1]
+    assert rec["mealie"]["id"] == "11111111-2222-3333-4444-555555555555"
+    rec_id = rec["id"]
+    # gleich nochmal: nichts geändert
+    res = await imp("lasagne", "update")
+    assert res["unchanged"] == 1 and res["updated"] == 0 and res["added"] == 0
+    # normaler Modus überspringt weiter
+    assert (await imp("lasagne", "skip"))["exists"] == 1
+    # Mealie ändert das Rezept (und den Namen): wird aktualisiert, Symbol/Plan/Notiz bleiben
+    m.update_recipe(rec_id, icon="mdi:pasta", plan="week", cook_note="mehr Käse")
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{base}/recipes/lasagne", json=_mealie_recipe(name="Lasagne neu", recipeServings=6.0))
+    res = await imp("lasagne", "update")
+    assert res["updated"] == 1 and res["updated_names"] == ["Lasagne neu"], res
+    rec = m.recipe_by_id(rec_id)
+    assert rec["name"] == "Lasagne neu" and rec["servings"] == 6 and rec["icon"] == "mdi:pasta" and rec["plan"] == "week" and rec["cook_note"] == "mehr Käse"
+    assert len([r for r in m.recipes if r["id"] == rec_id]) == 1 and len(m.recipes) == 1  # kein zweites Rezept
+    # du änderst hier selbst: bleibt unangetastet, bis „überschreiben“
+    m.update_recipe(rec_id, servings=2)
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(f"{base}/recipes/lasagne", json=_mealie_recipe(name="Lasagne neu", recipeServings=8.0))
+    res = await imp("lasagne", "update")
+    assert res["kept"] == 1 and res["kept_names"] == ["Lasagne neu"] and res["updated"] == 0
+    assert m.recipe_by_id(rec_id)["servings"] == 2
+    res = await imp("lasagne", "overwrite")
+    assert res["updated"] == 1 and m.recipe_by_id(rec_id)["servings"] == 8
+    # Rezept ohne Merkzettel (älterer Import) gleichen Namens: geschützt, mit „überschreiben“ verknüpft
+    old = m.add_recipe("Kuchen", [{"name": "Mehl"}])
+    aioclient_mock.get(f"{base}/recipes/kuchen", json=_mealie_recipe(slug="kuchen", name="Kuchen", id="k1"))
+    assert (await imp("kuchen", "update"))["kept"] == 1 and len(m.recipes) == 2
+    assert (await imp("kuchen", "overwrite"))["updated"] == 1
+    assert m.recipe_by_id(old["id"])["mealie"]["id"] == "k1" and len(m.recipes) == 2
+    # Vorschau erkennt umbenannte Rezepte über die Mealie-ID
+    aioclient_mock.get(f"{base}/recipes", json={"page": 1, "total": 1, "total_pages": 1, "items": [{"id": "k1", "slug": "kuchen", "name": "Ganz anderer Name"}]})
+    await client.send_json({"id": 99, "type": "einkaufsliste/mealie/preview", **conn})
+    assert (await client.receive_json())["result"]["rows"][0]["exists"] is True

@@ -2473,7 +2473,7 @@
 "Rezepte holen": "Fetch recipes",
 "Verbindung testen": "Test connection",
 "🍲 Aus Mealie": "🍲 From Mealie",
-": Holt deine Rezepte aus Mealie – mit Zutaten (Menge, Einheit), Zubereitung, Portionen, Dauer, Link und Foto. Es wird nur gelesen, in Mealie ändert sich nichts. Rezepte, die es hier schon unter dem gleichen Namen gibt, werden übersprungen.": ": Fetches your recipes from Mealie – with ingredients (amount, unit), instructions, servings, time, link and photo. It only reads; nothing changes in Mealie. Recipes that already exist here under the same name are skipped.",
+": Holt deine Rezepte aus Mealie – mit Zutaten (Menge, Einheit), Zubereitung, Portionen, Dauer, Link und Foto. Es wird nur gelesen, in Mealie ändert sich nichts. Rezepte, die es hier schon gibt, werden normalerweise übersprungen – oder auf Wunsch aktualisiert.": ": Fetches your recipes from Mealie – with ingredients (amount, unit), instructions, servings, time, link and photo. It only reads; nothing changes in Mealie. Recipes that already exist here are normally skipped – or updated if you wish.",
 "In Mealie: oben auf dein Profil → API-Token → neues Token anlegen und kopieren.": "In Mealie: open your profile at the top → API token → create a new token and copy it.",
 "Die Adresse ist die, mit der du Mealie im Browser öffnest (z. B. http://192.168.1.20:9000 oder https://mealie.example.org). Home Assistant muss Mealie erreichen können.": "The address is the one you use to open Mealie in the browser (e.g. http://192.168.1.20:9000 or https://mealie.example.org). Home Assistant must be able to reach Mealie.",
 "Das Token liegt nur auf dem Server von Home Assistant – nie auf Handys, nie in Sicherungen.": "The token is stored only on the Home Assistant server – never on phones, never in backups.",
@@ -2506,5 +2506,15 @@
 ", {} gab es schon": ", {} already existed",
 " · Fotos: {}": " · Photos: {}",
 " · {} nicht möglich (siehe Fehler-Protokoll)": " · {} not possible (see error log)",
-"🔒 Rezepte aus Mealie holen darf nur ein Admin – es ruft ein anderes Gerät im Netz ab.": "🔒 Only an admin can fetch recipes from Mealie – it contacts another device on the network."
+"🔒 Rezepte aus Mealie holen darf nur ein Admin – es ruft ein anderes Gerät im Netz ab.": "🔒 Only an admin can fetch recipes from Mealie – it contacts another device on the network.",
+"Nichts verändert 🤷": "Nothing changed 🤷",
+"🍲 {} neu · {} aktualisiert": "🍲 {0} new · {1} updated",
+"✅ {} neu übernommen": "✅ {} newly imported",
+", {} aktualisiert": ", {} updated",
+", {} unverändert": ", {} unchanged",
+", {} von dir geändert (nicht angefasst)": ", {} edited by you (left alone)",
+"Nicht überschrieben, weil du sie hier geändert hast:": "Not overwritten because you edited them here:",
+"Schon vorhandene aktualisieren": "Update recipes that already exist",
+"Auch Rezepte überschreiben, die ich hier selbst geändert habe": "Also overwrite recipes I have edited here",
+"Aktualisiert wird nur, was sich in Mealie geändert hat. Symbol, Gruppe, Wochenplan und Notizen bleiben, Rezepte, die du hier selbst bearbeitet hast, bleiben unangetastet.": "Only what changed in Mealie is updated. Icon, group, weekly plan and notes stay. Recipes you edited here yourself are left untouched."
 }

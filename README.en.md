@@ -255,7 +255,7 @@ Then under **Fetch recipes**: **Fetch recipes from Mealie**, filter and tick wha
 - 🥕 **Ingredients** with amount, unit and note (free-text lines are split like when pasting a recipe) – and which ingredients belong to which step.
 - 👨‍🍳 **Instructions** (one step per line, Markdown is smoothed out), **servings**, **time**, the **link** to the original recipe and, if you like, the **photo**.
 
-Whatever already exists here under the same name is skipped, and nothing changes in Mealie (it is only read). The token is kept on the server only (never on phones, never in backups); “Remove connection” deletes it again. 🔒 Admins only; Home Assistant must be able to reach Mealie. *Note: built for the Mealie API from version 2 on (tested against version 3).*
+Whatever already exists here is skipped. With “Update recipes that already exist” it is brought up to date with Mealie instead – but only if something changed there (renamed recipes too, as the recipe is recognised by its Mealie ID). Icon, group, weekly plan and notes stay; recipes you edited here yourself are left untouched unless you tick “Also overwrite recipes I have edited here”. Nothing changes in Mealie (it is only read). The token is kept on the server only (never on phones, never in backups); “Remove connection” deletes it again. 🔒 Admins only; Home Assistant must be able to reach Mealie. *Note: built for the Mealie API from version 2 on (tested against version 3).*
 
 </details>
 

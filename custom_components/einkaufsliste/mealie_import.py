@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import re
@@ -147,6 +148,7 @@ def summary_row(r: Any) -> dict[str, Any] | None:
     cats = [str(c.get("name")) for c in (r.get("recipeCategory") or []) if isinstance(c, dict) and c.get("name")]
     return {
         "slug": slug,
+        "id": str(r.get("id") or ""),
         "name": name,
         "minutes": minutes_of(r),
         "servings": servings_of(r),
@@ -323,15 +325,42 @@ async def _fetch_image(session, base: str, token: str, recipe_id: str) -> str | 
 
 
 # ---------------------------------------------------------------- Übernehmen
+_FIELDS = ("name", "items", "steps", "servings", "minutes", "source", "step_items")
+
+
+def _sig(values: dict[str, Any]) -> str:
+    """Fingerabdruck der Inhalte eines Rezepts (ohne Symbol, Gruppe, Plan, Notizen)."""
+    data = {k: values.get(k) for k in _FIELDS}
+    return hashlib.sha1(json.dumps(data, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()[:16]
+
+
+def find_linked(recipes: list[dict[str, Any]], recipe_id: str, name: str) -> dict[str, Any] | None:
+    """Das Rezept hier zu einem Mealie-Rezept: erst über die gemerkte Mealie-ID, sonst über den Namen."""
+    if recipe_id:
+        for r in recipes:
+            if (r.get("mealie") or {}).get("id") == recipe_id:
+                return r
+    low = name.lower()
+    return next((r for r in recipes if r["name"].lower() == low), None)
+
+
 async def async_import(hass, manager: EinkaufslisteManager, cfg: dict[str, Any], slugs: list[str],
-                       with_photos: bool = True) -> dict[str, Any]:
-    """Die gewählten Mealie-Rezepte anlegen. Gibt es den Namen schon, wird das Rezept übersprungen (nichts wird überschrieben)."""
+                       with_photos: bool = True, mode: str = "skip") -> dict[str, Any]:
+    """Die gewählten Mealie-Rezepte anlegen.
+
+    mode "skip": Gibt es das Rezept schon, wird es übersprungen.
+    mode "update": Vorhandene werden aktualisiert, wenn sie sich in Mealie geändert haben – außer du hast sie hier
+        selbst geändert (die bleiben unangetastet).
+    mode "overwrite": wie "update", aber auch selbst geänderte werden überschrieben.
+    """
     token = _need_token(cfg.get("token"))
     base = clean_base(cfg.get("url"))
     session = _session(hass, cfg.get("verify_ssl", True))
-    existing = {r["name"].lower() for r in manager.recipes}
     added: list[str] = []
+    updated: list[str] = []
     exists: list[str] = []
+    unchanged: list[str] = []
+    kept: list[str] = []
     failed: list[str] = []
     photos = 0
     for slug in [str(s) for s in slugs][:MAX_IMPORT]:
@@ -342,19 +371,38 @@ async def async_import(hass, manager: EinkaufslisteManager, cfg: dict[str, Any],
             rec = map_recipe(detail, base)
             if not rec["name"]:
                 raise ValueError("ohne Namen")
-            if rec["name"].lower() in existing:
-                exists.append(rec["name"])
+            src_sig = _sig(rec)
+            have = find_linked(manager.recipes, rec["recipe_id"], rec["name"])
+            fresh = False
+            if have is None:
+                recipe = manager.add_recipe(
+                    rec["name"], rec["items"], steps=rec["steps"], servings=rec["servings"], minutes=rec["minutes"],
+                    source=rec["source"], step_items=rec["step_items"],
+                )
+                fresh = True
+            elif mode == "skip":
+                exists.append(have["name"])
                 continue
-            recipe = manager.add_recipe(
-                rec["name"], rec["items"], steps=rec["steps"], servings=rec["servings"], minutes=rec["minutes"],
-                source=rec["source"], step_items=rec["step_items"],
-            )
+            else:
+                link = have.get("mealie") or {}
+                if link.get("src_sig") == src_sig and link.get("id") == rec["recipe_id"]:
+                    unchanged.append(have["name"])
+                    continue
+                edited = link.get("local_sig") != _sig(have)  # ohne gemerkten Stand (älterer Import) gilt es als geändert
+                if edited and mode != "overwrite":
+                    kept.append(have["name"])
+                    continue
+                recipe = manager.update_recipe(
+                    have["id"], name=rec["name"], items=rec["items"], steps=rec["steps"], servings=rec["servings"],
+                    minutes=rec["minutes"], source=rec["source"], step_items=rec["step_items"],
+                )
+            recipe["mealie"] = {"id": rec["recipe_id"], "slug": rec["slug"], "src_sig": src_sig, "local_sig": _sig(recipe)}
+            manager._changed()  # noqa: SLF001
         except ValueError as err:
             _LOGGER.info("Mealie-Rezept %s übersprungen: %s", slug, err)
             failed.append(slug)
             continue
-        existing.add(recipe["name"].lower())
-        added.append(recipe["name"])
+        (added if fresh else updated).append(recipe["name"])
         if with_photos and rec["has_image"]:
             try:
                 data = await _fetch_image(session, base, token, rec["recipe_id"])
@@ -365,8 +413,9 @@ async def async_import(hass, manager: EinkaufslisteManager, cfg: dict[str, Any],
                     photos += 1
             except ValueError as err:
                 _LOGGER.debug("Foto zu %s nicht übernommen: %s", slug, err)
-    return {"added": len(added), "names": added, "exists": len(exists), "exists_names": exists,
-            "failed": len(failed), "photos": photos}
+    return {"added": len(added), "names": added, "updated": len(updated), "updated_names": updated,
+            "exists": len(exists), "exists_names": exists, "unchanged": len(unchanged),
+            "kept": len(kept), "kept_names": kept, "failed": len(failed), "photos": photos}
 
 
 async def async_test(hass, url: Any, token: Any, verify_ssl: bool = True) -> dict[str, Any]:
