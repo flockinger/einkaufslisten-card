@@ -2516,5 +2516,7 @@
 "Nicht überschrieben, weil du sie hier geändert hast:": "Not overwritten because you edited them here:",
 "Schon vorhandene aktualisieren": "Update recipes that already exist",
 "Auch Rezepte überschreiben, die ich hier selbst geändert habe": "Also overwrite recipes I have edited here",
-"Aktualisiert wird nur, was sich in Mealie geändert hat. Symbol, Gruppe, Wochenplan und Notizen bleiben, Rezepte, die du hier selbst bearbeitet hast, bleiben unangetastet.": "Only what changed in Mealie is updated. Icon, group, weekly plan and notes stay. Recipes you edited here yourself are left untouched."
+"Aktualisiert wird nur, was sich in Mealie geändert hat. Symbol, Gruppe, Wochenplan und Notizen bleiben, Rezepte, die du hier selbst bearbeitet hast, bleiben unangetastet.": "Only what changed in Mealie is updated. Icon, group, weekly plan and notes stay. Recipes you edited here yourself are left untouched.",
+"Übersprungen, gibt es hier schon:": "Skipped, already exist here:",
+"Nicht möglich:": "Not possible:"
 }

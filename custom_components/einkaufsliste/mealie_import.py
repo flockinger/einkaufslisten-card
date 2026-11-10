@@ -334,6 +334,25 @@ def _sig(values: dict[str, Any]) -> str:
     return hashlib.sha1(json.dumps(data, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()[:16]
 
 
+def _unique_items(manager: EinkaufslisteManager, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Zutaten, die nach Spitznamen & Co. gleich heißen würden, bekommen „, 2“ / „Nr. 2“ – sonst lehnt das Rezept sie ab."""
+    out: list[dict[str, Any]] = []
+    for item in items:
+        cand = dict(item)
+        n = 1
+        while True:
+            try:
+                manager._recipe_items([*out, cand])  # noqa: SLF001 - nur zur Probe, ändert nichts
+                break
+            except ValueError as err:
+                if "doppelt" not in str(err) or n >= 50:
+                    raise
+                n += 1
+                cand["note"] = f"{item['note']}, {n}" if item.get("note") else f"Nr. {n}"
+        out.append(cand)
+    return out
+
+
 def find_linked(recipes: list[dict[str, Any]], recipe_id: str, name: str) -> dict[str, Any] | None:
     """Das Rezept hier zu einem Mealie-Rezept: erst über die gemerkte Mealie-ID, sonst über den Namen."""
     if recipe_id:
@@ -362,6 +381,7 @@ async def async_import(hass, manager: EinkaufslisteManager, cfg: dict[str, Any],
     unchanged: list[str] = []
     kept: list[str] = []
     failed: list[str] = []
+    failed_info: list[dict[str, str]] = []
     photos = 0
     for slug in [str(s) for s in slugs][:MAX_IMPORT]:
         try:
@@ -372,11 +392,12 @@ async def async_import(hass, manager: EinkaufslisteManager, cfg: dict[str, Any],
             if not rec["name"]:
                 raise ValueError("ohne Namen")
             src_sig = _sig(rec)
+            items = _unique_items(manager, rec["items"])
             have = find_linked(manager.recipes, rec["recipe_id"], rec["name"])
             fresh = False
             if have is None:
                 recipe = manager.add_recipe(
-                    rec["name"], rec["items"], steps=rec["steps"], servings=rec["servings"], minutes=rec["minutes"],
+                    rec["name"], items, steps=rec["steps"], servings=rec["servings"], minutes=rec["minutes"],
                     source=rec["source"], step_items=rec["step_items"],
                 )
                 fresh = True
@@ -393,14 +414,15 @@ async def async_import(hass, manager: EinkaufslisteManager, cfg: dict[str, Any],
                     kept.append(have["name"])
                     continue
                 recipe = manager.update_recipe(
-                    have["id"], name=rec["name"], items=rec["items"], steps=rec["steps"], servings=rec["servings"],
+                    have["id"], name=rec["name"], items=items, steps=rec["steps"], servings=rec["servings"],
                     minutes=rec["minutes"], source=rec["source"], step_items=rec["step_items"],
                 )
             recipe["mealie"] = {"id": rec["recipe_id"], "slug": rec["slug"], "src_sig": src_sig, "local_sig": _sig(recipe)}
             manager._changed()  # noqa: SLF001
-        except ValueError as err:
-            _LOGGER.info("Mealie-Rezept %s übersprungen: %s", slug, err)
+        except (ValueError, KeyError, TypeError) as err:
+            _LOGGER.warning("Mealie-Rezept %s nicht übernommen: %s", slug, err)
             failed.append(slug)
+            failed_info.append({"slug": slug, "reason": str(err)})
             continue
         (added if fresh else updated).append(recipe["name"])
         if with_photos and rec["has_image"]:
@@ -415,7 +437,7 @@ async def async_import(hass, manager: EinkaufslisteManager, cfg: dict[str, Any],
                 _LOGGER.debug("Foto zu %s nicht übernommen: %s", slug, err)
     return {"added": len(added), "names": added, "updated": len(updated), "updated_names": updated,
             "exists": len(exists), "exists_names": exists, "unchanged": len(unchanged),
-            "kept": len(kept), "kept_names": kept, "failed": len(failed), "photos": photos}
+            "kept": len(kept), "kept_names": kept, "failed": len(failed), "failed_info": failed_info, "photos": photos}
 
 
 async def async_test(hass, url: Any, token: Any, verify_ssl: bool = True) -> dict[str, Any]:

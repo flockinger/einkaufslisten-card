@@ -8497,7 +8497,7 @@ ${(() => {
     if (!m || !m.on.size) return;
     const c = this._mealieConn();
     const slugs = [...m.on];
-    const total = { added: 0, updated: 0, unchanged: 0, kept: 0, exists: 0, failed: 0, photos: 0, names: [], updatedNames: [], keptNames: [] };
+    const total = { added: 0, updated: 0, unchanged: 0, kept: 0, exists: 0, failed: 0, photos: 0, names: [], updatedNames: [], keptNames: [], existsNames: [], failedInfo: [] };
     const go = this.$("mealieGo");
     if (go) go.disabled = true;
     try {
@@ -8505,14 +8505,14 @@ ${(() => {
         this._xferResult(`<p class="hint">⏳ ${Math.min(i + 20, slugs.length)} / ${slugs.length} …</p>`);
         const res = await this._ws({ type: "einkaufsliste/mealie/import", slugs: slugs.slice(i, i + 20), photos: m.photos, mode: m.mode || "skip", ...c });
         total.added += res.added; total.updated += res.updated || 0; total.unchanged += res.unchanged || 0; total.kept += res.kept || 0; total.exists += res.exists; total.failed += res.failed; total.photos += res.photos;
-        total.names.push(...res.names); total.updatedNames.push(...(res.updated_names || [])); total.keptNames.push(...(res.kept_names || []));
+        total.names.push(...res.names); total.updatedNames.push(...(res.updated_names || [])); total.keptNames.push(...(res.kept_names || [])); total.existsNames.push(...(res.exists_names || [])); total.failedInfo.push(...(res.failed_info || []));
       }
     } catch (_) { /* Meldung kam schon */ }
     const done = new Set([...total.names, ...total.updatedNames].map((x) => x.toLowerCase()));
     for (const r of m.rows) if (done.has(r.name.toLowerCase())) { r.exists = true; m.on.delete(r.slug); }
     const nTouched = total.added + total.updated;
     this._toast(nTouched ? `🍲 ${total.added} neu · ${total.updated} aktualisiert` : "Nichts verändert 🤷");
-    this._xferResult(`<p class="hint"><span>✅ ${total.added} neu übernommen</span>${total.updated ? `<span>, ${total.updated} aktualisiert</span>` : ""}${total.unchanged ? `<span>, ${total.unchanged} unverändert</span>` : ""}${total.kept ? `<span>, ${total.kept} von dir geändert (nicht angefasst)</span>` : ""}${total.exists ? `<span>, ${total.exists} gab es schon</span>` : ""}${total.photos ? `<span> · Fotos: ${total.photos}</span>` : ""}${total.failed ? `<span> · ${total.failed} nicht möglich (siehe Fehler-Protokoll)</span>` : ""}.</p>${total.names.length + total.updatedNames.length ? `<ul class="hint">${total.names.map((x) => `<li>${esc(x)}</li>`).join("")}${total.updatedNames.map((x) => `<li>🔄 ${esc(x)}</li>`).join("")}</ul>` : ""}${total.keptNames.length ? `<p class="hint"><span>Nicht überschrieben, weil du sie hier geändert hast:</span></p><ul class="hint">${total.keptNames.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}`);
+    this._xferResult(`<p class="hint"><span>✅ ${total.added} neu übernommen</span>${total.updated ? `<span>, ${total.updated} aktualisiert</span>` : ""}${total.unchanged ? `<span>, ${total.unchanged} unverändert</span>` : ""}${total.kept ? `<span>, ${total.kept} von dir geändert (nicht angefasst)</span>` : ""}${total.exists ? `<span>, ${total.exists} gab es schon</span>` : ""}${total.photos ? `<span> · Fotos: ${total.photos}</span>` : ""}${total.failed ? `<span> · ${total.failed} nicht möglich (siehe Fehler-Protokoll)</span>` : ""}.</p>${total.names.length + total.updatedNames.length ? `<ul class="hint">${total.names.map((x) => `<li>${esc(x)}</li>`).join("")}${total.updatedNames.map((x) => `<li>🔄 ${esc(x)}</li>`).join("")}</ul>` : ""}${total.existsNames.length ? `<p class="hint"><span>Übersprungen, gibt es hier schon:</span></p><ul class="hint">${total.existsNames.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}${total.failedInfo.length ? `<p class="hint"><span>Nicht möglich:</span></p><ul class="hint">${total.failedInfo.map((x) => `<li translate="no">${esc(x.slug)} – ${esc(x.reason)}</li>`).join("")}</ul>` : ""}${total.keptNames.length ? `<p class="hint"><span>Nicht überschrieben, weil du sie hier geändert hast:</span></p><ul class="hint">${total.keptNames.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}`);
     const o2 = this.$("mealieOut");
     if (o2) o2.innerHTML = this._mealieOutHtml();
   }

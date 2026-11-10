@@ -5318,3 +5318,22 @@ async def test_mealie_update(hass, setup, hass_ws_client, aioclient_mock):
     aioclient_mock.get(f"{base}/recipes", json={"page": 1, "total": 1, "total_pages": 1, "items": [{"id": "k1", "slug": "kuchen", "name": "Ganz anderer Name"}]})
     await client.send_json({"id": 99, "type": "einkaufsliste/mealie/preview", **conn})
     assert (await client.receive_json())["result"]["rows"][0]["exists"] is True
+
+
+async def test_mealie_import_alias_duplicates(hass, setup, hass_ws_client, aioclient_mock):
+    """🍲 Zwei Zutaten, die durch einen Spitznamen zum gleichen Artikel würden, lassen das Rezept nicht scheitern; Fehlergründe werden gemeldet."""
+    m = mgr(hass)
+    client = await hass_ws_client(hass)
+    base = "https://mealie.lan/api"
+    m.aliases["geriebener cheddar"] = {"name": "Cheddar", "note": None}  # „Geriebener Cheddar“ -> Cheddar
+    ings = [{"quantity": 200.0, "unit": {"abbreviation": "g"}, "food": {"name": n}, "note": ""} for n in ("Cheddar", "Geriebener Cheddar")]
+    aioclient_mock.get(f"{base}/recipes/risotto", json=_mealie_recipe(slug="risotto", name="Risotto", id="r1", recipeIngredient=ings))
+    aioclient_mock.get(f"{base}/recipes/weg", status=404)
+    await client.send_json({"id": 1, "type": "einkaufsliste/mealie/import", "slugs": ["risotto", "weg"], "photos": False,
+                            "url": "https://mealie.lan", "token": "T"})
+    res = await client.receive_json()
+    assert res["success"], res
+    assert res["result"]["added"] == 1 and res["result"]["failed"] == 1, res
+    assert res["result"]["failed_info"][0]["slug"] == "weg" and res["result"]["failed_info"][0]["reason"]
+    rec = next(r for r in m.recipes if r["name"] == "Risotto")
+    assert sorted((i["name"], i["note"] or "") for i in rec["items"]) == [("Cheddar", ""), ("Cheddar", "Nr. 2")]
