@@ -7804,7 +7804,7 @@ ${(() => {
   // 🪗 Aufklapper-Kasten (Import „Aus anderen Apps“, Aufräumen): immer nur einer pro Gruppe g offen
   _acc(g, k, icon, color, title, sub, inner) {
     const on = (this._accOpen || {})[g] === k;
-    const emo = { "mdi:sync": "🔁", "mdi:import": "📥", "mdi:clipboard-text-outline": "📋", "mdi:file-delimited-outline": "📄", "mdi:calendar-sync": "🗓️", "mdi:broom": "🧹", "mdi:delete-sweep-outline": "🧽", "mdi:delete-forever-outline": "🗑️", "mdi:nuke": "💣", "mdi:format-text": "🏷️", "mdi:check": "✔️", "mdi:format-size": "🔠", "mdi:view-dashboard-outline": "🧩", "mdi:eye-outline": "👁️", "mdi:download": "⬇️", "mdi:backup-restore": "♻️", "mdi:cloud-download-outline": "🥫", "mdi:sync-circle": "🔄", "mdi:information-outline": "ℹ️", "mdi:email-edit-outline": "✉️", "mdi:chart-donut": "📊", "mdi:speedometer": "⏱️", "mdi:meditation": "🧘", "mdi:palette-outline": "🎨", "mdi:map-marker-outline": "📍", "mdi:clock-outline": "🕒", "mdi:format-list-bulleted": "🗂️", "mdi:tag-outline": "🏷️" }[icon] || "📁";
+    const emo = { "mdi:sync": "🔁", "mdi:import": "📥", "mdi:clipboard-text-outline": "📋", "mdi:file-delimited-outline": "📄", "mdi:calendar-sync": "🗓️", "mdi:broom": "🧹", "mdi:delete-sweep-outline": "🧽", "mdi:delete-forever-outline": "🗑️", "mdi:nuke": "💣", "mdi:format-text": "🏷️", "mdi:check": "✔️", "mdi:format-size": "🔠", "mdi:view-dashboard-outline": "🧩", "mdi:eye-outline": "👁️", "mdi:download": "⬇️", "mdi:backup-restore": "♻️", "mdi:cloud-download-outline": "🥫", "mdi:sync-circle": "🔄", "mdi:information-outline": "ℹ️", "mdi:email-edit-outline": "✉️", "mdi:chart-donut": "📊", "mdi:speedometer": "⏱️", "mdi:meditation": "🧘", "mdi:palette-outline": "🎨", "mdi:map-marker-outline": "📍", "mdi:clock-outline": "🕒", "mdi:format-list-bulleted": "🗂️", "mdi:tag-outline": "🏷️", "mdi:link-variant": "🔗", "mdi:chef-hat": "🍲" }[icon] || "📁";
     // exakt die gleichen Bauteile wie die Hauptgruppen der Einstellungen (lgbox / lgroup / gem) – sieht darum überall genau so aus wie sie
     return `<div class="lgbox xacc ${on ? "open" : ""}" data-k="${k}"><button type="button" class="lgroup xacc-h" data-act="acc-toggle" data-g="${g}" data-k="${k}" aria-expanded="${on}"><span class="gem" style="--gc:${color}">${emo}</span><span class="grow"><b>${title}</b><small>${sub}</small></span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></button><div class="xacc-b" ${on ? "" : "hidden"}>${inner}</div></div>`;
   }
@@ -7867,6 +7867,8 @@ ${(() => {
         <div id="xferRes"></div>`;
     } else if (tab === "grocy") {
       body = admin ? this._grocyHtml() : `<p class="hint">🔒 Produkte aus Grocy holen darf nur ein Admin – es ruft ein anderes Gerät im Netz ab.</p>`;
+    } else if (tab === "mealie") {
+      body = admin ? this._mealieHtml() : `<p class="hint">🔒 Rezepte aus Mealie holen darf nur ein Admin – es ruft ein anderes Gerät im Netz ab.</p>`;
     } else if (tab === "mail") {
       body = this._mailHtml();
     } else if (tab === "backup") {
@@ -7881,7 +7883,7 @@ ${(() => {
         <div id="xferRes"></div>` : `<p class="hint">🔒 Sicherungen darf nur ein Admin herunterladen oder einspielen.</p>`;
     }
     // 🗂️ die Reiter oben sind jetzt Kästen wie die Hauptgruppen: nur der offene zeigt seinen Inhalt, nochmal antippen klappt ihn zu
-    const tabs = [["apps", "🔁", "Aus anderen Apps", "Alexa-/To-do-Listen, Text, CSV-Katalog"], ["grocy", "🥫", "Grocy", "Produkte in den Katalog holen"], ["mail", "📧", "E-Mail", "Artikel per Mail aufs Postfach"], ["backup", "💾", "Sicherung", "Alles als .zip herunterladen oder einspielen"]];
+    const tabs = [["apps", "🔁", "Aus anderen Apps", "Alexa-/To-do-Listen, Text, CSV-Katalog"], ["grocy", "🥫", "Grocy", "Produkte in den Katalog holen"], ["mealie", "🍲", "Mealie", "Rezepte aus Mealie holen"], ["mail", "📧", "E-Mail", "Artikel per Mail aufs Postfach"], ["backup", "💾", "Sicherung", "Alles als .zip herunterladen oder einspielen"]];
     return `<div class="xaccs">${tabs.map(([k, emo, label, sub]) => `<div class="lgbox xacc ${tab === k ? "open" : ""}" data-k="${k}"><button type="button" class="lgroup xacc-h" data-act="xfer-tab" data-tab="${k}" aria-expanded="${tab === k}"><span class="gem">${emo}</span><span class="grow"><b>${label}</b><small>${sub}</small></span><ha-icon class="chev" icon="mdi:chevron-down"></ha-icon></button>${tab === k ? `<div class="xacc-b">${body}</div>` : ""}</div>`).join("")}</div>`;
   }
 
@@ -8364,6 +8366,150 @@ ${(() => {
       const out = this.$("grocyOut");
       if (out) out.innerHTML = "";
     } catch (_) { /* Meldung kam schon */ }
+  }
+
+  // 🍲 Rezepte aus Mealie holen: Adresse + API-Token in der Maske (testen, speichern), Liste holen, Häkchen, übernehmen
+  _mealieConn() { // was gerade in der Maske steht (leer = gespeicherte Verbindung vom Server)
+    return { url: this.$("mealieUrl")?.value.trim() || "", token: this.$("mealieToken")?.value.trim() || "", verify_ssl: !this.$("mealieNoVerify")?.checked };
+  }
+
+  _mealieHtml() {
+    const sv = this._data?.settings?.mealie || null;
+    if (this._mealieUrl == null) this._mealieUrl = sv?.url || "";
+    if (this._mealieNoVerify == null) this._mealieNoVerify = sv ? sv.verify_ssl === false : false;
+    return `<div class="xaccs">
+      ${this._acc("xferm", "conn", "mdi:link-variant", "#ef6c00", "Verbindung", "Adresse und API-Token von Mealie", `
+      <div class="syncbox">
+      <p class="hint"><b>🍲 Aus Mealie</b><span>: Holt deine Rezepte aus Mealie – mit Zutaten (Menge, Einheit), Zubereitung, Portionen, Dauer, Link und Foto. Es wird nur gelesen, in Mealie ändert sich nichts. Rezepte, die es hier schon unter dem gleichen Namen gibt, werden übersprungen.</span></p>
+      <ul class="hint xferfmt">
+        <li>In Mealie: oben auf dein Profil → API-Token → neues Token anlegen und kopieren.</li>
+        <li>Die Adresse ist die, mit der du Mealie im Browser öffnest (z. B. http://192.168.1.20:9000 oder https://mealie.example.org). Home Assistant muss Mealie erreichen können.</li>
+        <li>Das Token liegt nur auf dem Server von Home Assistant – nie auf Handys, nie in Sicherungen.</li>
+      </ul>
+      <div class="srow"><ha-icon class="prev" icon="mdi:web"></ha-icon><input class="grow" id="mealieUrl" value="${esc(this._mealieUrl)}" placeholder="Mealie-Adresse, z. B. http://192.168.1.20:9000" translate="no" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <div class="srow"><ha-icon class="prev" icon="mdi:key-outline"></ha-icon><input class="grow" id="mealieToken" type="password" value="" placeholder="${sv?.has_token ? "API-Token (gespeichert – leer lassen zum Behalten)" : "API-Token"}" translate="no" autocomplete="off" autocapitalize="off" spellcheck="false"></div>
+      <label class="favrow"><input type="checkbox" id="mealieNoVerify" ${this._mealieNoVerify ? "checked" : ""}><span>Zertifikat nicht prüfen (nur für Mealie im Heimnetz mit selbst signiertem https)</span></label>
+      <p class="hint">${sv ? `✅ <span>Gespeichert:</span> <b translate="no">${esc(sv.url)}</b>${sv.has_token ? "" : ` · ⚠️ <span>noch ohne Token</span>`}` : "Noch keine Verbindung gespeichert."}</p>
+      <div class="btnrow">
+        <button class="btn" data-act="mealie-test"><ha-icon icon="mdi:lan-check"></ha-icon>Verbindung testen</button>
+        <button class="btn primary" data-act="mealie-save"><ha-icon icon="mdi:content-save-outline"></ha-icon>Speichern</button>
+        ${sv ? `<button class="btn" data-act="mealie-clear"><ha-icon icon="mdi:link-off"></ha-icon>Verbindung entfernen</button>` : ""}
+      </div>
+      </div>`)}
+      ${this._acc("xferm", "recipes", "mdi:chef-hat", "#e53935", "Rezepte holen", "Auswählen und als Rezepte übernehmen", `
+      <div class="syncbox">
+      <div class="btnrow"><button class="btn primary" data-act="mealie-fetch"><ha-icon icon="mdi:cloud-download-outline"></ha-icon>Rezepte aus Mealie holen</button></div>
+      <div id="mealieOut">${this._mealieOutHtml()}</div>
+      </div>`)}
+      </div>
+      <div id="xferRes"></div>`;
+  }
+
+  _mealieRowsShown() {
+    const m = this._mealie;
+    const q = (this._mealieFilter || "").trim().toLowerCase();
+    return m ? m.rows.filter((r) => !q || r.name.toLowerCase().includes(q)) : [];
+  }
+
+  _mealieListHtml() {
+    const m = this._mealie;
+    if (!m) return "";
+    const shown = this._mealieRowsShown().slice(0, 500);
+    const meta = (r) => [r.minutes ? `⏱ ${r.minutes} min` : "", r.servings ? `👥 ${r.servings}` : "", ...(r.categories || [])].filter(Boolean).join(" · ");
+    return shown.map((r) => `<label class="grocyrow ${r.exists ? "have" : ""}"><input type="checkbox" data-act="mealie-pick" data-slug="${esc(r.slug)}" ${m.on.has(r.slug) ? "checked" : ""}><span class="grow"><b translate="no">${esc(r.name)}</b>${meta(r) ? ` <small translate="no">· ${esc(meta(r))}</small>` : ""}</span>${r.image ? `<small title="Foto">📷</small>` : ""}${r.exists ? `<small>schon da</small>` : ""}</label>`).join("")
+      || `<p class="hint">Nichts gefunden.</p>`;
+  }
+
+  _mealieOutHtml() {
+    const m = this._mealie;
+    if (!m) return "";
+    const already = m.rows.filter((r) => r.exists).length;
+    const n = m.on.size;
+    return `
+      <p class="hint">🍲 <b>${m.rows.length}</b><span>${already ? ` Rezepte gefunden – ${already} davon gibt es hier schon (nicht angehakt).` : " Rezepte gefunden."}</span></p>
+      <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="mealieFilter" value="${esc(this._mealieFilter || "")}" placeholder="Rezepte filtern" translate="no" autocomplete="off" spellcheck="false"></div>
+      <div class="btnrow"><button class="btn" data-act="mealie-all" data-on="1">Alle angezeigten anhaken</button><button class="btn" data-act="mealie-all" data-on="0">Keine</button></div>
+      <div class="grocylist" id="mealieList">${this._mealieListHtml()}</div>
+      ${m.more ? `<p class="hint">… und ${m.more} weitere, die nicht geladen wurden.</p>` : ""}
+      <label class="favrow"><input type="checkbox" id="mealiePhotos" data-act="mealie-photos" ${m.photos ? "checked" : ""}> Fotos mit übernehmen</label>
+      <div class="btnrow"><button class="btn primary" data-act="mealie-go" id="mealieGo" ${n ? "" : "disabled"}><ha-icon icon="mdi:import"></ha-icon>${n} Rezepte übernehmen</button></div>`;
+  }
+
+  _mealieGoLabel() {
+    const go = this.$("mealieGo");
+    const n = this._mealie?.on.size || 0;
+    if (go) { go.disabled = !n; go.lastChild.textContent = `${n} Rezepte übernehmen`; }
+  }
+
+  async _mealieTest(btn) {
+    const c = this._mealieConn();
+    if (!c.url && !this._data?.settings?.mealie) { this._toast("Erst die Mealie-Adresse eintragen 😉"); return; }
+    if (btn) btn.disabled = true;
+    try {
+      const res = await this._ws({ type: "einkaufsliste/mealie/test", ...c });
+      this._toast(`✅ Mealie ist erreichbar${res.version ? ` (Version ${res.version})` : ""} – ${res.total} Rezepte`);
+    } catch (_) { /* Meldung kam schon */ }
+    if (btn) btn.disabled = false;
+  }
+
+  async _mealieSave() {
+    const c = this._mealieConn();
+    if (!c.url && !this._data?.settings?.mealie) { this._toast("Erst die Mealie-Adresse eintragen 😉"); return; }
+    try {
+      await this._ws({ type: "einkaufsliste/mealie/set", ...c });
+      this._mealieUrl = null; this._mealieNoVerify = null;
+      this._toast("💾 Gespeichert");
+      setTimeout(() => this._renderSettings(), 200);
+    } catch (_) { /* Meldung kam schon */ }
+  }
+
+  async _mealieClear() {
+    if (!await elConfirm("Verbindung zu Mealie entfernen? Das Token wird gelöscht. Deine Rezepte hier bleiben.")) return;
+    try {
+      await this._ws({ type: "einkaufsliste/mealie/clear" });
+      this._mealieUrl = null; this._mealieNoVerify = null; this._mealie = null;
+      this._toast("🔗 Verbindung entfernt");
+      setTimeout(() => this._renderSettings(), 200);
+    } catch (_) { /* Meldung kam schon */ }
+  }
+
+  async _mealieFetch() {
+    const c = this._mealieConn();
+    this._mealieUrl = c.url; this._mealieNoVerify = !c.verify_ssl;
+    if (!c.url && !this._data?.settings?.mealie) { this._toast("Erst die Mealie-Adresse und das Token eintragen 😉"); return; }
+    const out = this.$("mealieOut");
+    if (out) out.innerHTML = `<p class="hint">⏳ Hole Rezepte aus Mealie …</p>`;
+    try {
+      const res = await this._ws({ type: "einkaufsliste/mealie/preview", ...c });
+      this._mealie = { ...res, on: new Set(res.rows.filter((r) => !r.exists).map((r) => r.slug)), photos: true };
+      this._mealieFilter = "";
+    } catch (_) { this._mealie = null; if (out) out.innerHTML = ""; return; }
+    this._xferResult("");
+    const o2 = this.$("mealieOut");
+    if (o2) o2.innerHTML = this._mealieOutHtml();
+  }
+
+  async _mealieGo() {
+    const m = this._mealie;
+    if (!m || !m.on.size) return;
+    const c = this._mealieConn();
+    const slugs = [...m.on];
+    const total = { added: 0, exists: 0, failed: 0, photos: 0, names: [] };
+    const go = this.$("mealieGo");
+    if (go) go.disabled = true;
+    try {
+      for (let i = 0; i < slugs.length; i += 20) { // in kleinen Päckchen: jedes Rezept braucht eine eigene Abfrage bei Mealie
+        this._xferResult(`<p class="hint">⏳ ${Math.min(i + 20, slugs.length)} / ${slugs.length} …</p>`);
+        const res = await this._ws({ type: "einkaufsliste/mealie/import", slugs: slugs.slice(i, i + 20), photos: m.photos, ...c });
+        total.added += res.added; total.exists += res.exists; total.failed += res.failed; total.photos += res.photos; total.names.push(...res.names);
+      }
+    } catch (_) { /* Meldung kam schon */ }
+    const done = new Set(total.names.map((x) => x.toLowerCase()));
+    for (const r of m.rows) if (done.has(r.name.toLowerCase())) { r.exists = true; m.on.delete(r.slug); }
+    this._toast(total.added ? `🍲 ${total.added} ${total.added === 1 ? "Rezept" : "Rezepte"} übernommen` : "Nichts übernommen 🤷");
+    this._xferResult(`<p class="hint"><span>✅ ${total.added} übernommen</span>${total.exists ? `<span>, ${total.exists} gab es schon</span>` : ""}${total.photos ? `<span> · Fotos: ${total.photos}</span>` : ""}${total.failed ? `<span> · ${total.failed} nicht möglich (siehe Fehler-Protokoll)</span>` : ""}.</p>${total.names.length ? `<ul class="hint">${total.names.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}`);
+    const o2 = this.$("mealieOut");
+    if (o2) o2.innerHTML = this._mealieOutHtml();
   }
 
   _xferImported(res) {
@@ -13371,6 +13517,12 @@ ${S(".rzh")}{margin-top:3px;color:#e65100;font-size:12px}`;
     const sform = t.closest?.('form[data-addkind="stores"]'); // 🎨 neues Geschäft: Farbe der Kette gleich zeigen (bis man selbst eine wählt)
     if (sform && t.name === "color") t.dataset.manual = "1";
     else if (sform && t.name === "name" && sform.elements.color && !sform.elements.color.dataset.manual) sform.elements.color.value = elChainColor(t.value) || "#607d8b";
+    if (t.id === "mealieFilter") { // 🍲 Rezeptliste filtern (nur die Liste neu zeichnen, damit das Feld den Fokus behält)
+      this._mealieFilter = t.value;
+      const list = this.$("mealieList");
+      if (list) list.innerHTML = this._mealieListHtml();
+      return;
+    }
     if (t.id === "delSearch") {
       this._delFilter = t.value;
       this._renderDelList();
@@ -15090,6 +15242,38 @@ ${S(".rzh")}{margin-top:3px;color:#e65100;font-size:12px}`;
       }
       case "grocy-cats":
         if (this._grocy) this._grocy.makeCats = el.checked;
+        break;
+      case "mealie-test":
+        this._mealieTest(el);
+        break;
+      case "mealie-save":
+        this._mealieSave();
+        break;
+      case "mealie-clear":
+        this._mealieClear();
+        break;
+      case "mealie-fetch":
+        this._mealieFetch();
+        break;
+      case "mealie-go":
+        this._mealieGo();
+        break;
+      case "mealie-all":
+        if (this._mealie) {
+          for (const r of this._mealieRowsShown()) { if (el.dataset.on === "1") this._mealie.on.add(r.slug); else this._mealie.on.delete(r.slug); }
+          const list = this.$("mealieList");
+          if (list) list.innerHTML = this._mealieListHtml();
+          this._mealieGoLabel();
+        }
+        break;
+      case "mealie-pick":
+        if (this._mealie) {
+          if (el.checked) this._mealie.on.add(el.dataset.slug); else this._mealie.on.delete(el.dataset.slug);
+          this._mealieGoLabel();
+        }
+        break;
+      case "mealie-photos":
+        if (this._mealie) this._mealie.photos = el.checked;
         break;
       case "xfer-todo": {
         const entity_id = this.$("xferTodo")?.value;

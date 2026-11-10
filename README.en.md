@@ -29,7 +29,7 @@ One click opens it right in your Home Assistant: [![Open in HACS](https://my.hom
 - ⚡ **Quick to add** with suggestions, quantities (“3 milk”), photos and barcodes.
 - 🍽️ **Recipes** with cooking mode, meal plan and ingredients onto the list with one tap.
 - 🛒 **Shop mode** with big rows – and a 📱 **offline app** that works without network.
-- 🗣️ **Alexa**, 🥫 Grocy, 🏷️ offers, ⚠️ recall warnings, 🤖 AI cooking ideas and much more.
+- 🗣️ **Alexa**, 🥫 Grocy, 🍲 Mealie, 🏷️ offers, ⚠️ recall warnings, 🤖 AI cooking ideas and much more.
 - 🌍 German & English, everything stays **local** in Home Assistant.
 
 <details><summary>📋 All features in detail</summary>
@@ -244,6 +244,18 @@ Using Grocy? You can bring your products into the catalogue: **⚙️ → Data �
 - 📦 **New products** (every 1–24 hours): new Grocy products land in the catalogue by themselves – nothing is overwritten or deleted.
 
 For this the API key is kept on the server (never on phones, never in backups). “Remove connection” deletes it again. *Note: so far built against Grocy's API description only, not a real Grocy – feedback welcome.*
+
+</details>
+
+<details><summary><b>🍲 Fetch recipes from Mealie</b></summary>
+
+Do you manage your recipes in Mealie? You can bring them over: **⚙️ → Data → Import & backup → Mealie**. Under **Connection** enter the address of your Mealie (e.g. `http://192.168.1.20:9000` or `https://mealie.example.org`) and an **API token** (in Mealie: profile → *API token* → create a new token). **Test connection** checks both, **Save** stores them on the server. If your Mealie uses a self-signed https certificate, tick **Don't check the certificate**.
+
+Then under **Fetch recipes**: **Fetch recipes from Mealie**, filter and tick what should come over, **Import**. What comes over:
+- 🥕 **Ingredients** with amount, unit and note (free-text lines are split like when pasting a recipe) – and which ingredients belong to which step.
+- 👨‍🍳 **Instructions** (one step per line, Markdown is smoothed out), **servings**, **time**, the **link** to the original recipe and, if you like, the **photo**.
+
+Whatever already exists here under the same name is skipped, and nothing changes in Mealie (it is only read). The token is kept on the server only (never on phones, never in backups); “Remove connection” deletes it again. 🔒 Admins only; Home Assistant must be able to reach Mealie. *Note: built for the Mealie API from version 2 on (tested against version 3).*
 
 </details>
 

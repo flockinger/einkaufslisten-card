@@ -17,6 +17,7 @@ from .barcode import async_auto_photo, async_lookup, async_product_info, async_r
 from .ai_cook import async_cook
 from .grocy_import import async_fetch, clean_base, import_rows, parse_catalog_text
 from .recipe_import import async_import
+from . import mealie_import
 from .const import DOMAIN, PUSH_DELAY, SIGNAL_UPDATED
 from .mail_import import mail_sources
 from .osm_hours import async_search_hours
@@ -99,6 +100,11 @@ def async_register(hass: HomeAssistant) -> None:
         ws_grocy_set,
         ws_grocy_clear,
         ws_grocy_run,
+        ws_mealie_test,
+        ws_mealie_preview,
+        ws_mealie_import,
+        ws_mealie_set,
+        ws_mealie_clear,
         ws_cards_list,
         ws_card_add,
         ws_card_update,
@@ -1634,6 +1640,108 @@ async def ws_grocy_run(hass, connection, msg):
         return
     status = await gs.run(force_b=True)
     connection.send_result(msg["id"], {"status": status})
+
+
+# ---------------------------------------------------------------- 🍲 Mealie (nur Admin: es ruft ein anderes Gerät im Netz ab)
+def _mealie_conn(manager, msg) -> tuple[str, str, bool]:
+    """Adresse, Token und Zertifikat-Prüfung: was in der Maske steht, sonst die gespeicherte Verbindung."""
+    saved = (manager.mealie if manager is not None else {}) or {}
+    url, token = msg["url"].strip(), msg["token"].strip()
+    verify = msg.get("verify_ssl")
+    if not url:
+        url = saved.get("url", "")
+    if not token and saved.get("token") and (not msg["url"].strip() or mealie_base_safe(url) == saved.get("url")):
+        token = saved["token"]
+    if verify is None:
+        verify = saved.get("verify_ssl", True) is not False
+    return url, token, bool(verify)
+
+
+def mealie_base_safe(url: str) -> str:
+    try:
+        return mealie_import.clean_base(url)
+    except ValueError:
+        return ""
+
+
+_MEALIE_CONN = {
+    vol.Optional("url", default=""): str,
+    vol.Optional("token", default=""): str,
+    vol.Optional("verify_ssl"): bool,
+}
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/mealie/test", **_MEALIE_CONN})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_mealie_test(hass, connection, msg):
+    """🍲 Verbindung zu Mealie prüfen (Adresse und Token – gespeichert wird nichts)."""
+    url, token, verify = _mealie_conn(_manager(hass), msg)
+    try:
+        res = await mealie_import.async_test(hass, url, token, verify)
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    connection.send_result(msg["id"], res)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/mealie/preview", **_MEALIE_CONN})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_mealie_preview(hass, connection, msg):
+    """🍲 Rezepte aus Mealie auflisten (Vorschau). Das Token wird nicht gespeichert."""
+    manager = _manager(hass)
+    url, token, verify = _mealie_conn(manager, msg)
+    try:
+        res = await mealie_import.async_list(hass, url, token, verify)
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    have = {r["name"].lower() for r in manager.recipes} if manager is not None else set()
+    for row in res["rows"]:
+        row["exists"] = row["name"].lower() in have
+    connection.send_result(msg["id"], res)
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "einkaufsliste/mealie/import",
+        vol.Required("slugs"): vol.All([vol.All(str, vol.Length(max=200))], vol.Length(max=mealie_import.MAX_IMPORT)),
+        vol.Optional("photos", default=True): bool,
+        **_MEALIE_CONN,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_mealie_import(hass, connection, msg):
+    """🍲 Die gewählten Mealie-Rezepte als Rezepte anlegen."""
+    manager = _manager(hass)
+    url, token, verify = _mealie_conn(manager, msg)
+    cfg = {"url": url, "token": token, "verify_ssl": verify}
+    await _run_async(hass, connection, msg, lambda m: mealie_import.async_import(hass, m, cfg, msg["slugs"], msg["photos"]))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "einkaufsliste/mealie/set",
+        vol.Optional("url", default=""): str,
+        vol.Optional("token", default=""): str,
+        vol.Optional("verify_ssl", default=True): bool,
+    }
+)
+@websocket_api.require_admin
+@callback
+def ws_mealie_set(hass, connection, msg):
+    """🍲 Mealie-Verbindung speichern (das Token bleibt auf dem Server)."""
+    _run(hass, connection, msg, lambda m: m.set_mealie(msg["url"], msg["token"], msg["verify_ssl"]))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/mealie/clear"})
+@websocket_api.require_admin
+@callback
+def ws_mealie_clear(hass, connection, msg):
+    """🍲 Verbindung zu Mealie entfernen."""
+    _run(hass, connection, msg, lambda m: m.clear_mealie())
 
 
 @websocket_api.websocket_command(

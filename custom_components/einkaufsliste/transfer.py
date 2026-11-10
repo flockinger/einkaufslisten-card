@@ -40,6 +40,8 @@ async def async_export(manager: EinkaufslisteManager) -> bytes:
     stored = manager._to_storage()
     if stored.get("grocy"):  # 🔐 API-Schlüssel und Verknüpfungen gehören nicht in eine Datei, die man herumschickt
         stored["grocy"] = {k: v for k, v in stored["grocy"].items() if k not in ("api_key", "links")}
+    if stored.get("mealie"):  # 🔐 das Mealie-Token ebenso
+        stored["mealie"] = {k: v for k, v in stored["mealie"].items() if k != "token"}
     data = {"format": BACKUP_FORMAT, "version": VERSION, "created": dt_util.utcnow().isoformat(),
             "data": stored}
     ids = {pid for entry in manager.photos.values() for pid in manager._photo_ids(entry)}
@@ -122,6 +124,10 @@ async def async_restore(manager: EinkaufslisteManager, raw: bytes) -> dict[str, 
         else:  # ohne Schlüssel kann nichts laufen -> ausschalten statt ins Leere zu laufen
             g = {**g, "api_key": "", "a_on": False, "b_on": False, "links": {}}
         data = {**data, "grocy": g}
+    old_m = dict(manager.mealie or {})
+    mealie = data.get("mealie")
+    if isinstance(mealie, dict) and mealie.get("url"):  # 🍲 Token bleibt, wenn es derselbe Server ist – sonst leer
+        data = {**data, "mealie": {**mealie, "token": old_m.get("token", "") if old_m.get("url") == mealie.get("url") else ""}}
     safety = manager._to_storage()  # 🛟 Sicherheitskopie der aktuellen Daten – bei einem Fehler geht alles zurück
     try:
         await manager._store.async_save(data)

@@ -27,7 +27,7 @@ Ein Klick öffnet es direkt in deinem Home Assistant: [![In HACS öffnen](https:
 - ⚡ **Schnell eintragen** mit Vorschlägen, Mengen („3 milch“), Fotos und Barcodes.
 - 🍽️ **Rezepte** mit Koch-Modus, Essensplan und Zutaten per Tipp auf die Liste.
 - 🛒 **Laden-Modus** mit großen Zeilen – und 📱 **Offline-App**, die auch ohne Netz geht.
-- 🗣️ **Alexa**, 🥫 Grocy, 🏷️ Angebote, ⚠️ Rückruf-Warnung, 🤖 KI-Kochideen und vieles mehr.
+- 🗣️ **Alexa**, 🥫 Grocy, 🍲 Mealie, 🏷️ Angebote, ⚠️ Rückruf-Warnung, 🤖 KI-Kochideen und vieles mehr.
 - 🌍 Deutsch & Englisch, alles bleibt **lokal** in Home Assistant.
 
 <details><summary>📋 Alle Funktionen im Detail</summary>
@@ -243,6 +243,18 @@ Du nutzt Grocy? Dann kannst du deine Produkte in den Katalog holen: **⚙️ →
 - 📦 **Neue Produkte** (alle 1–24 Stunden): neue Grocy-Produkte kommen von selbst in den Katalog – nichts wird überschrieben oder gelöscht.
 
 Dafür liegt der API-Schlüssel auf dem Server (nie auf Handys, nie in Sicherungen). „Verbindung entfernen“ löscht ihn wieder. *Hinweis: gegen ein echtes Grocy bisher nur nach dessen API-Beschreibung gebaut – Rückmeldungen willkommen.*
+
+</details>
+
+<details><summary><b>🍲 Rezepte aus Mealie holen</b></summary>
+
+Du verwaltest deine Rezepte in Mealie? Dann kannst du sie hierher holen: **⚙️ → Daten → Import & Sicherung → Mealie**. Unter **Verbindung** trägst du die Adresse deines Mealie ein (z. B. `http://192.168.1.20:9000` oder `https://mealie.example.org`) und ein **API-Token** (in Mealie: Profil → *API-Token* → neues Token anlegen). **Verbindung testen** prüft beides, **Speichern** legt sie auf dem Server ab. Hat dein Mealie ein selbst signiertes https-Zertifikat, hilft der Haken **Zertifikat nicht prüfen**.
+
+Danach unter **Rezepte holen**: **Rezepte aus Mealie holen**, in der Liste filtern und anhaken, was rüber soll, **Übernehmen**. Übernommen werden:
+- 🥕 **Zutaten** mit Menge, Einheit und Notiz (Freitext-Zeilen werden wie beim Rezept-Einfügen zerlegt) – und welche Zutaten zu welchem Schritt gehören.
+- 👨‍🍳 **Zubereitung** (ein Schritt pro Zeile, Markdown wird geglättet), **Portionen**, **Dauer**, der **Link** zum Originalrezept und auf Wunsch das **Foto**.
+
+Was es hier schon unter dem gleichen Namen gibt, wird übersprungen, in Mealie wird nichts verändert (es wird nur gelesen). Das Token liegt nur auf dem Server (nie auf Handys, nie in Sicherungen); „Verbindung entfernen“ löscht es wieder. 🔒 Nur Admins; Home Assistant muss Mealie erreichen können. *Hinweis: gebaut für die Mealie-API ab Version 2 (getestet gegen Version 3).*
 
 </details>
 

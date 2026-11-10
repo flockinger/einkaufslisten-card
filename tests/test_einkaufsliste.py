@@ -5122,3 +5122,141 @@ async def test_kochmodus_anzeige(hass, setup, hass_ws_client, freezer) -> None:
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
     assert hass.states.get("sensor.einkaufsliste_kochmodus").state == "aus" and m.cooking is None
+
+
+# ---------------------------------------------------------------- 🍲 Mealie-Import
+MEALIE = "http://mealie.lan:9000/api"
+
+
+def _mealie_recipe(**over):
+    rec = {
+        "id": "11111111-2222-3333-4444-555555555555", "slug": "lasagne", "name": "  lasagne  ",
+        "image": "abcd", "recipeServings": 4.0, "totalTime": "1 Hour 30 Minutes",
+        "orgURL": "https://example.org/lasagne",
+        "recipeIngredient": [
+            {"quantity": 500.0, "unit": {"name": "Gramm", "abbreviation": "g"}, "food": {"name": "Hackfleisch"}, "note": "gemischt",
+             "referenceId": "r1"},
+            {"quantity": 0.5, "unit": None, "food": {"name": "Zwiebel"}, "note": "fein gehackt", "referenceId": "r2"},
+            {"quantity": 2.0, "unit": {"name": "Esslöffel", "abbreviation": "EL"}, "food": {"name": "Olivenöl"}, "note": "", "referenceId": "r3"},
+            {"quantity": 1.0, "unit": {"name": "Esslöffel", "abbreviation": "EL"}, "food": {"name": "Olivenöl"}, "note": "", "referenceId": "r4"},
+            {"quantity": None, "unit": None, "food": None, "note": "200 g Mehl", "originalText": "200 g Mehl", "referenceId": "r5"},
+            {"quantity": 3.0, "unit": None, "food": {"name": "Salz"}, "disableAmount": True, "note": "", "referenceId": "r6"},
+        ],
+        "recipeInstructions": [
+            {"title": "Soße", "text": "**Zwiebel** und [Hack](http://x) anbraten.\n\nMit Wein ablöschen.", "ingredientReferences": [{"referenceId": "r1"}, {"referenceId": "r2"}]},
+            {"title": "", "text": "Schichten und backen.", "ingredientReferences": []},
+            {"text": "   ", "ingredientReferences": []},
+        ],
+    }
+    rec.update(over)
+    return rec
+
+
+def test_mealie_helpers():
+    """🍲 Adresse säubern, Zeitangaben und Zutaten aus Mealie umwandeln."""
+    from custom_components.einkaufsliste import mealie_import as mi
+
+    assert mi.clean_base("mealie.lan:9000/api/") == "http://mealie.lan:9000"
+    assert mi.clean_base("https://mealie.lan/") == "https://mealie.lan"
+    assert mi.clean_base("https://example.org/mealie/api") == "https://example.org/mealie"
+    for bad in ("", "ftp://x", "http://user:pw@host/"):
+        with pytest.raises(ValueError):
+            mi.clean_base(bad)
+    for text, mins in [("45 Minutes", 45), ("1 Hour 30 Minutes", 90), ("1 Std. 15 Min.", 75), ("PT1H30M", 90), ("90", 90),
+                       ("2 hours", 120), ("", None), ("bald", None), ("0", None)]:
+        assert mi._minutes_text(text) == mins, text
+    assert mi.minutes_of({"totalTime": "", "prepTime": "15 Minutes", "performTime": "30 Minutes"}) == 45
+    assert mi.servings_of({"recipeServings": 0, "recipeYieldQuantity": 6.0}) == 6
+    assert mi.servings_of({"recipeServings": 0}) is None
+    rec = mi.map_recipe(_mealie_recipe(), "http://mealie.lan:9000")
+    assert rec["name"] == "Lasagne" and rec["servings"] == 4 and rec["minutes"] == 90
+    assert rec["source"] == "https://example.org/lasagne" and rec["has_image"] is True
+    items = {i["name"]: i for i in rec["items"]}
+    assert items["Hackfleisch"]["quantity"] == "500 g" and items["Hackfleisch"]["note"] == "Gemischt"
+    assert items["Zwiebel"]["quantity"] == "0,5x"
+    assert items["Salz"]["quantity"] is None  # „Menge ausgeblendet“
+    assert items["Mehl"]["quantity"] == "200 g"  # Freitext-Zeile wird zerlegt
+    oils = [i for i in rec["items"] if i["name"] == "Olivenöl"]
+    assert len(oils) == 2 and oils[0]["note"] != oils[1]["note"]  # doppelte Zutat geht nicht verloren
+    assert rec["steps"].split("\n") == ["Soße: Zwiebel und Hack anbraten. Mit Wein ablöschen.", "Schichten und backen."]
+    assert rec["step_items"] == [["hackfleisch", "zwiebel"], None]
+
+
+async def test_mealie_import(hass, setup, hass_ws_client, hass_read_only_access_token, aioclient_mock):
+    """🍲 Mealie: Verbindung speichern (Token bleibt geheim), Liste holen, Rezepte mit Foto übernehmen."""
+    m = mgr(hass)
+    client = await hass_ws_client(hass)
+    # Verbindung testen
+    aioclient_mock.get(f"{MEALIE}/app/about", json={"version": "3.0.0"})
+    aioclient_mock.get(f"{MEALIE}/recipes", json={"items": [], "total": 7, "total_pages": 7, "page": 1, "per_page": 1})
+    await client.send_json({"id": 1, "type": "einkaufsliste/mealie/test", "url": "mealie.lan:9000", "token": "Bearer GEHEIM"})
+    res = await client.receive_json()
+    assert res["success"] and res["result"] == {"version": "3.0.0", "total": 7}, res
+    assert aioclient_mock.mock_calls[0][3]["Authorization"] == "Bearer GEHEIM"  # „Bearer “ wird nicht doppelt gesetzt
+    assert m.mealie_info() is None  # testen speichert nichts
+    # speichern: Token nicht in den Einstellungen für die Karte, nicht in der Sicherung
+    await client.send_json({"id": 2, "type": "einkaufsliste/mealie/set", "url": "https://mealie.lan/", "token": "GEHEIM", "verify_ssl": False})
+    res = await client.receive_json()
+    assert res["success"] and res["result"] == {"url": "https://mealie.lan", "verify_ssl": False, "has_token": True}, res
+    assert "GEHEIM" not in str(m.as_dict())
+    from custom_components.einkaufsliste.transfer import async_export
+    assert b"GEHEIM" not in await async_export(m)
+    # Token leer lassen = altes behalten
+    await client.send_json({"id": 3, "type": "einkaufsliste/mealie/set", "url": "https://mealie.lan", "token": "", "verify_ssl": True})
+    assert (await client.receive_json())["result"]["has_token"] is True and m.mealie["token"] == "GEHEIM"
+    # Liste holen mit der gespeicherten Verbindung
+    base = "https://mealie.lan/api"
+    aioclient_mock.get(f"{base}/recipes", json={"page": 1, "per_page": 100, "total": 3, "total_pages": 1, "items": [
+        {"slug": "lasagne", "name": "Lasagne", "image": "x", "totalTime": "45 Minutes", "recipeServings": 4, "recipeCategory": [{"name": "Pasta"}]},
+        {"slug": "kuchen", "name": "Kuchen", "image": None},
+        {"slug": "", "name": "Kaputt"},
+    ]})
+    m.add_recipe("Kuchen", [{"name": "Mehl"}])  # gibt es schon
+    await client.send_json({"id": 4, "type": "einkaufsliste/mealie/preview"})
+    res = await client.receive_json()
+    assert res["success"], res
+    rows = {r["slug"]: r for r in res["result"]["rows"]}
+    assert set(rows) == {"lasagne", "kuchen"}
+    assert rows["lasagne"]["minutes"] == 45 and rows["lasagne"]["categories"] == ["Pasta"] and rows["lasagne"]["image"] is True
+    assert rows["kuchen"]["exists"] is True and rows["lasagne"]["exists"] is False
+    # übernehmen (Foto kommt als kleines webp)
+    webp = b"RIFF\x00\x00\x00\x00WEBPVP8 " + b"\x00" * 20
+    aioclient_mock.get(f"{base}/recipes/lasagne", json=_mealie_recipe())
+    aioclient_mock.get(f"{base}/recipes/kuchen", json=_mealie_recipe(slug="kuchen", name="Kuchen", id="k1"))
+    aioclient_mock.get(f"{base}/recipes/weg", status=404)
+    aioclient_mock.get(f"{base}/media/recipes/11111111-2222-3333-4444-555555555555/images/min-original.webp", content=webp)
+    await client.send_json({"id": 5, "type": "einkaufsliste/mealie/import", "slugs": ["lasagne", "kuchen", "weg"], "photos": True})
+    res = await client.receive_json()
+    assert res["success"] and res["result"]["added"] == 1 and res["result"]["exists"] == 1 and res["result"]["failed"] == 1, res
+    assert res["result"]["photos"] == 1 and res["result"]["names"] == ["Lasagne"]
+    rec = next(r for r in m.recipes if r["name"] == "Lasagne")
+    assert rec["servings"] == 4 and rec["minutes"] == 90 and rec["source"] == "https://example.org/lasagne"
+    assert len(rec["items"]) == 6 and rec["steps"].count("\n") == 1
+    assert rec["step_items"][0] == ["hackfleisch", "zwiebel"]
+    assert f"rezept#{rec['id']}" in m.photos
+    # Verbindung entfernen löscht das Token
+    await client.send_json({"id": 6, "type": "einkaufsliste/mealie/clear"})
+    assert (await client.receive_json())["success"] and m.mealie == {} and m.mealie_info() is None
+    # nur Admins
+    ro = await hass_ws_client(hass, hass_read_only_access_token)
+    for n, t in enumerate(("test", "preview", "import", "set", "clear"), 1):
+        await ro.send_json({"id": n, "type": f"einkaufsliste/mealie/{t}", **({"slugs": ["x"]} if t == "import" else {})})
+        assert (await ro.receive_json())["error"]["code"] == "unauthorized"
+
+
+async def test_mealie_errors(hass, setup, hass_ws_client, aioclient_mock):
+    """🍲 Mealie-Fehler kommen als verständliche Meldung (Token falsch, falsche Adresse, nicht erreichbar, kein Mealie)."""
+    import aiohttp
+    client = await hass_ws_client(hass)
+    aioclient_mock.get("http://m1/api/app/about", status=401)
+    aioclient_mock.get("http://m2/api/app/about", status=404)
+    aioclient_mock.get("http://m3/api/app/about", exc=aiohttp.ClientError())
+    aioclient_mock.get("http://m4/api/app/about", text="<html>kein json</html>")
+    for n, (host, text) in enumerate([("m1", "Token"), ("m2", "kein Mealie"), ("m3", "nicht erreichbar"), ("m4", "lesbare")], 1):
+        await client.send_json({"id": n, "type": "einkaufsliste/mealie/test", "url": host, "token": "k"})
+        res = await client.receive_json()
+        assert not res["success"] and text in res["error"]["message"], res
+    await client.send_json({"id": 9, "type": "einkaufsliste/mealie/test", "url": "m1", "token": " "})
+    assert "Token" in (await client.receive_json())["error"]["message"]
+    await client.send_json({"id": 10, "type": "einkaufsliste/mealie/preview", "url": "", "token": ""})
+    assert not (await client.receive_json())["success"]  # nichts getippt und nichts gespeichert

@@ -612,6 +612,7 @@ class EinkaufslisteManager:
         self.purchases: list[dict[str, Any]] = []  # 🧾 {"id","t","s","sn","w","wi","a"} – wer, wann, wo, wie viel
         self.todo_syncs: list[dict[str, Any]] = []  # 🔁 je To-do-Liste {"entity_id", "store_id", "count", "mode", "links"} – herüberholen
         self.grocy: dict[str, Any] = {}  # 🛒 Grocy-Dauerabgleich {"url","api_key","a_on",…} – der Schlüssel verlässt den Server nie
+        self.mealie: dict[str, Any] = {}  # 🍲 Mealie-Verbindung {"url","token","verify_ssl"} – das Token verlässt den Server nie
         self.offers_cfg: dict[str, Any] | None = None  # 🏷️ {"enabled", "zip", "stores", "hours", "key", "last", "ok", "error", "count"}
         self.offers_data: dict[str, list[dict[str, Any]]] = {}  # 🏷️ Artikelname klein -> Angebote
         self.offers_ext: dict[str, list[dict[str, Any]]] = {}  # 📬 Quelle -> Angebote aus eigenen Automationen (Dienst angebote_melden)
@@ -856,6 +857,8 @@ class EinkaufslisteManager:
         self.offers_cfg = data.get("offers_cfg") or None
         g = data.get("grocy")
         self.grocy = dict(g) if isinstance(g, dict) else {}
+        mealie = data.get("mealie")
+        self.mealie = dict(mealie) if isinstance(mealie, dict) else {}
         self.offers_data = dict(data.get("offers_data") or {})
         raw_ext = data.get("offers_ext")
         self.offers_ext = {str(k): [o for o in v if isinstance(o, dict)] for k, v in raw_ext.items()
@@ -945,6 +948,7 @@ class EinkaufslisteManager:
             "mail_seen": self.mail_seen[-50:],
             "offers_cfg": self.offers_cfg,
             "grocy": self.grocy,
+            "mealie": self.mealie,
             "offers_data": self.offers_data,
             "offers_ext": self.offers_ext,
             "recalls_cfg": self.recalls_cfg,
@@ -1054,6 +1058,7 @@ class EinkaufslisteManager:
                 "offers": self._offers_info(),
                 "recalls": self.recalls_info(),
                 "grocy": self.grocy_info(),
+                "mealie": self.mealie_info(),
                 "errors": len(self.errors),
                 "errors_24h": self._errors_since(timedelta(hours=24)),
             },
@@ -1475,6 +1480,32 @@ class EinkaufslisteManager:
         gs = getattr(self, "grocy_sync", None)
         if gs is not None:
             gs.stop()
+        self._changed()
+
+    def mealie_info(self) -> dict[str, Any] | None:
+        """🍲 Mealie-Verbindung für die Karte – NIE mit Token."""
+        cfg = self.mealie
+        if not cfg or not cfg.get("url"):
+            return None
+        return {"url": cfg["url"], "verify_ssl": cfg.get("verify_ssl", True) is not False, "has_token": bool(cfg.get("token"))}
+
+    def set_mealie(self, url: str | None = None, token: str | None = None, verify_ssl: bool = True) -> dict[str, Any] | None:
+        """🍲 Mealie-Verbindung speichern. Leeres Token = altes behalten (nur, wenn die Adresse gleich bleibt)."""
+        from .mealie_import import clean_base  # noqa: PLC0415
+
+        old = dict(self.mealie or {})
+        base = clean_base(url or old.get("url") or "")
+        new_token = (token or "").strip()
+        if new_token.lower().startswith("bearer "):
+            new_token = new_token[7:].strip()
+        key = new_token or (old.get("token") if old.get("url") == base else "")
+        self.mealie = {"url": base, "token": key or "", "verify_ssl": bool(verify_ssl)}
+        self._changed()
+        return self.mealie_info()
+
+    def clear_mealie(self) -> None:
+        """🍲 Verbindung zu Mealie entfernen (das Token wird gelöscht)."""
+        self.mealie = {}
         self._changed()
 
     def _mail_import_info(self) -> dict[str, Any] | None:
