@@ -4,11 +4,13 @@
 
 🇬🇧 **English?** → [README in English](README.en.md)
 
+> 🍴 **Dies ist ein Fork** von [misterm2310/einkaufslisten-card](https://github.com/misterm2310/einkaufslisten-card) (MIT-Lizenz, alle Rechte am Original beim Autor). Ergänzt wurde der **Mealie-Import** (siehe unten). Alles andere stammt vom Original. Dort gibt es auch die offiziellen Versionen in HACS. Fehler, die nur den Mealie-Import betreffen, bitte [hier im Fork](https://github.com/flockinger/einkaufslisten-card/issues) melden, alles andere beim Original.
+
 **Die Familien-Einkaufsliste direkt im Dashboard.** Mehrere Geschäfte, Kategorien, Rezepte und Live-Sync auf allen Handys. Hinter jedem Artikel steht, wer ihn eingetragen hat. Gekauftes wird abgehakt und bleibt als „schon mal gekauft“ stehen – beim nächsten Mal ist es mit einem Tipp wieder drauf.
 
-Ein Klick öffnet es direkt in deinem Home Assistant: [![In HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=misterm2310&repository=einkaufslisten-card&category=integration) [![Integration hinzufügen](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=einkaufsliste)
+Ein Klick öffnet es direkt in deinem Home Assistant: [![In HACS öffnen](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=flockinger&repository=einkaufslisten-card&category=integration) [![Integration hinzufügen](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=einkaufsliste)
 
-> ✅ **Offiziell in HACS** (seit 04.11.2026): einfach in HACS nach **Einkaufsliste** suchen, kein eigenes Repository mehr nötig. 🎉
+> ℹ️ Das Original ist offiziell in HACS (seit 04.11.2026). **Dieser Fork nicht:** Dafür in HACS als benutzerdefiniertes Repository eintragen (siehe Installation).
 
 ![Vorschau – Einkaufsliste hell und dunkel](docs/screenshot.png)
 
@@ -64,7 +66,7 @@ Leere Eingabefelder zeigen ein Beispiel (bei der Menge passend zum Produkt, z. B
 
 ## 📦 Installation
 
-1. **HACS** öffnen (ab Home Assistant 2026.11: **Einstellungen → Marketplace**) und nach **Einkaufsliste** suchen. Oder oben einfach auf „In HACS öffnen“ tippen.
+1. **HACS** öffnen, oben rechts **⋮ → Benutzerdefinierte Repositories**, `https://github.com/flockinger/einkaufslisten-card` eintragen, Typ **Integration**, **Hinzufügen**. Oder oben einfach auf „In HACS öffnen“ tippen. (Das Original ohne Mealie findest du direkt in HACS unter **Einkaufsliste**.)
 2. **Herunterladen**, danach **Home Assistant neu starten**.
 3. **Einstellungen → Geräte & Dienste → Integration hinzufügen → Einkaufsliste** → Absenden, fertig. 🎉 (Aufräum-Tag und Uhrzeit stellst du später in der Karte ein: ⚙️ → Aufräumen.)
 4. Dashboard → **Bearbeiten → Karte hinzufügen → Einkaufsliste**.
@@ -75,11 +77,6 @@ type: custom:einkaufsliste-card
 
 > 🙌 Eine Ressource musst du **nicht** von Hand eintragen, das macht die Integration selbst.
 > Sieht die Karte nach einem Update komisch aus? In der App einmal nach unten ziehen oder im Browser Strg+F5.
-
-<details><summary>Plan B: Taucht die Einkaufsliste bei dir noch nicht auf? (als benutzerdefiniertes Repository)</summary>
-
-In HACS oben rechts **⋮ → Benutzerdefinierte Repositories** öffnen, `https://github.com/misterm2310/einkaufslisten-card` eintragen, Typ **Integration**, **Hinzufügen**. Danach weiter mit Schritt 1.
-</details>
 
 <details><summary>Ohne HACS (von Hand)</summary>
 

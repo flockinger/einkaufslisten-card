@@ -4,11 +4,13 @@
 
 🇩🇪 **Deutsch?** → [README auf Deutsch](README.md)
 
+> 🍴 **This is a fork** of [misterm2310/einkaufslisten-card](https://github.com/misterm2310/einkaufslisten-card) (MIT license, all rights to the original belong to its author). It adds the **Mealie import** (see below). Everything else comes from the original, which is also where the official HACS releases live. Please report problems that only concern the Mealie import [here in the fork](https://github.com/flockinger/einkaufslisten-card/issues), everything else at the original.
+
 **The family shopping list right in your dashboard.** Several stores, categories, recipes and live sync on every phone. Every item shows who added it. Bought things get checked off and stay as “bought before”, so next time they are back on with a single tap.
 
-One click opens it right in your Home Assistant: [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=misterm2310&repository=einkaufslisten-card&category=integration) [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=einkaufsliste)
+One click opens it right in your Home Assistant: [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=flockinger&repository=einkaufslisten-card&category=integration) [![Add integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=einkaufsliste)
 
-> ✅ **Official in HACS** (since 4 Nov 2026): just search HACS for **Einkaufsliste**, no custom repository needed any more. 🎉
+> ℹ️ The original is official in HACS (since 4 Nov 2026). **This fork is not:** add it in HACS as a custom repository (see Installation).
 
 > 🌍 The card was written in German and speaks English whenever your Home Assistant is not set to German (or with `language: en`). On a fresh English install the default stores, categories and recipe groups are English too. Your own entries are never translated. Spot a German leftover? Please open an issue.
 
@@ -66,7 +68,7 @@ Empty input fields show an example (for the quantity one that fits the product, 
 
 ## 📦 Installation
 
-1. Open **HACS** (from Home Assistant 2026.11: **Settings → Marketplace**) and search for **Einkaufsliste**. Or simply tap “Open in HACS” above.
+1. Open **HACS**, **⋮ → Custom repositories** at the top right, add `https://github.com/flockinger/einkaufslisten-card`, type **Integration**, **Add**. Or simply tap “Open in HACS” above. (The original without Mealie is available directly in HACS under **Einkaufsliste**.)
 2. **Download**, then **restart Home Assistant**.
 3. **Settings → Devices & services → Add integration → Einkaufsliste** → Submit, done. 🎉 (Cleanup day and time are set later in the card: ⚙️ → Cleanup.)
 4. Dashboard → **Edit → Add card → Einkaufsliste**.
@@ -77,11 +79,6 @@ type: custom:einkaufsliste-card
 
 > 🙌 No need to add a resource by hand – the integration does it.
 > Card looks odd after an update? Pull down to refresh in the app or press Ctrl+F5 in the browser.
-
-<details><summary>Plan B: Einkaufsliste doesn't show up yet? (as a custom repository)</summary>
-
-In HACS open **⋮ → Custom repositories** at the top right, add `https://github.com/misterm2310/einkaufslisten-card`, type **Integration**, **Add**. Then continue with step 1.
-</details>
 
 <details><summary>Without HACS (manually)</summary>
 
