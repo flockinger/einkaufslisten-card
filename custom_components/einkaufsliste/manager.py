@@ -31,6 +31,7 @@ from homeassistant.util import dt as dt_util
 from .categories import category_hints, guess_category
 from .geocode import async_geocode, geo_key
 from .netutil import photo_file_complete
+from .nutrition import clean_nutrition
 from .quantity import UNIT_CHOICES, apply_unit, is_bare, norm_qty, split_qty, split_qty_ex, unit_of
 from .const import (
     CATEGORY_COLORS,
@@ -343,7 +344,7 @@ def _name_list(value: Any, limit: int = 40, size: int = 60) -> list[str]:
 # 👁️ Listenansicht: was beim Artikel zu sehen ist (an/aus) – für alle ("_all") und pro Benutzer (Benutzer-ID)
 VIEW_KEYS = (
     "qty", "note", "own_note", "for_whom", "added_by", "added_at", "checked_by", "cleanup", "store",
-    "recipe", "barcode", "photo", "fav", "offer", "out", "gone", "zone_here", "move", "new", "cat_color",
+    "recipe", "barcode", "photo", "fav", "offer", "offer_price", "out", "gone", "zone_here", "move", "new", "cat_color",
     "tabs", "in_name", "in_store", "in_cat", "in_icons",  # 🧩 Leiste/Eingabe-Felder oben (an/aus)
     "done", "done_open",  # ✔️ Bereich „Erledigt“ zeigen / aufgeklappt starten (Standard beides an)
     "anim",  # ✔️ Abhak-Animation – pro Benutzer (Standard an)
@@ -408,6 +409,18 @@ def _clean_branches(value: Any) -> list[dict[str, Any]] | None:
             entry["country"] = country
         out.append(entry)
     return out or None
+
+
+# 🌍 Währungen, die eindeutig ein Land verraten (EUR gilt in vielen Ländern → kein Hinweis)
+CURRENCY_COUNTRY = {"CHF": "CH", "GBP": "GB", "DKK": "DK", "PLN": "PL", "CZK": "CZ", "SEK": "SE", "NOK": "NO", "HUF": "HU"}
+
+
+def _offer_country(value: Any) -> str | None:
+    """🌍 Land eines gemeldeten Angebots als ISO-Kürzel – Unfug wird still ignoriert (dann gilt es überall)."""
+    try:
+        return _clean_country(value)
+    except ValueError:
+        return None
 
 
 def _clean_currency(value: Any) -> str | None:
@@ -587,6 +600,9 @@ class EinkaufslisteManager:
         self.ai_agent: str | None = None  # 🤖 KI-Kochen: gewählter Home-Assistant-Assistent (bleibt gemerkt, auch wenn aus)
         self.ai_on: bool = False  # 🤖 KI-Kochen an/aus (Standard aus)
         self.ai_pantry: list[str] = []  # 🧂 „Immer im Haus“ – geht bei jeder KI-Kochen-Anfrage mit
+        self.basics: list[str] = []  # 🧂 Zentrale Grundvorrat-Liste: gilt in ALLEN Rezepten als „haben wir immer“
+        self.basics_on = False
+        self.basics_one = True  # 🧂 neue Installation: nichts umzuziehen
         self.ai_avoid: list[str] = []  # 🚫 „Das nie vorschlagen“ (Allergien, Abneigungen)
         self.mascot: bool = False  # 🛒😊 Maskottchen an/aus – gilt für alle Karten und Handys
         self.plan_reset_on: bool = True  # 📅 Wochenplan: eingeplante Rezepte am Wochentag automatisch zurücksetzen
@@ -797,7 +813,7 @@ class EinkaufslisteManager:
                 tidied |= new_qty != entry.get("quantity")
                 entry["quantity"] = new_qty
                 entry.setdefault("basic", False)
-            recipe["items"] = sorted(recipe.get("items", []), key=_abc)  # 🔤 Zutaten A–Z
+            # 🔀 Reihenfolge der Zutaten bleibt so, wie sie gespeichert wurde (kein A–Z mehr beim Start)
         self.photos = data.get("photos", {})
         self.seen = data.get("seen", {})
         for mine in self.seen.values():  # älter als v2.2.0: Blasen-Zeiten („b:…“) nachrüsten
@@ -832,6 +848,24 @@ class EinkaufslisteManager:
         self.ai_on = bool(data.get("ai_on", False)) and self.ai_agent is not None
         self.ai_pantry = _name_list(data.get("ai_pantry"))
         self.ai_avoid = _name_list(data.get("ai_avoid"))
+        self.basics = _name_list(data.get("basics"), limit=80)
+        self.basics_on = bool(data.get("basics_on", False))
+        # 🧂 Einmalig (2.76.28-beta.3): Es gibt nur noch EINEN Grundvorrat. Alte 🧂-Haken in einzelnen Rezepten wandern auf die
+        # zentrale Liste (gelten dann überall), das „hier abgewählt“ aus beta.1/beta.2 fällt weg.
+        self.basics_one = bool(data.get("basics_one", False))
+        if not self.basics_one:
+            moved = False
+            for rec in self.recipes:
+                for ri in rec.get("items") or []:
+                    ri.pop("no_basic", None)
+                    if ri.get("basic"):
+                        self._add_basic(ri.get("name"))
+                        ri["basic"] = False
+                        moved = True
+            if moved:
+                self.basics_on = True
+            self.basics_one = True
+            tidied = True  # gleich dauerhaft speichern
         self.privacy = bool(data.get("privacy", False))
         self.spend = bool(data.get("spend", False))
         self.spend_auto = bool(data.get("spend_auto", False))
@@ -931,6 +965,9 @@ class EinkaufslisteManager:
             "ai_on": self.ai_on,
             "ai_pantry": self.ai_pantry,
             "ai_avoid": self.ai_avoid,
+            "basics": self.basics,
+            "basics_on": self.basics_on,
+            "basics_one": self.basics_one,
             "privacy": self.privacy,
             "spend": self.spend,
             "spend_auto": self.spend_auto,
@@ -1046,6 +1083,8 @@ class EinkaufslisteManager:
                 "ai_on": self.ai_on,
                 "ai_pantry": self.ai_pantry,
                 "ai_avoid": self.ai_avoid,
+                "basics": self.basics,
+                "basics_on": self.basics_on,
                 "privacy": self.privacy,
                 "cards_on": self.cards_on,
                 "spend": self.spend,
@@ -1133,12 +1172,14 @@ class EinkaufslisteManager:
     EXT_MAX = 300  # je Quelle höchstens so viele Angebote merken
 
     def report_offers(self, offers: list[dict[str, Any]], source: str | None = None,
-                      replace: bool = True, now: datetime | None = None) -> dict[str, Any]:
+                      replace: bool = True, now: datetime | None = None,
+                      country: str | None = None) -> dict[str, Any]:
         """📬 Dienst „angebote_melden“: eine eigene Automation (z. B. AppDaemon, REST, Scraper) meldet Angebote.
         Die Karte zeigt sie wie die Marktguru-Angebote (🏷️ am Artikel, „🛒 Hier kaufen“).
         Es geht dabei nichts ins Internet – die Liste nimmt nur an, was ihr geschickt wird."""
         now = now or dt_util.utcnow()
         src = re.sub(r"\s+", " ", str(source or "").strip())[:40] or "extern"
+        call_country = _offer_country(country)
         new: list[dict[str, Any]] = []
         skipped = 0
         for raw in offers or []:
@@ -1159,6 +1200,10 @@ class EinkaufslisteManager:
             off = {"n": name, "r": store, "p": round(float(price), 2), "from": frm, "to": to,
                    "d": title, "q": (str(raw.get("description") or "").strip()[:200] or None), "img": None,
                    "cur": _clean_currency(raw.get("currency")), "src": src}
+            # 🌍 Land: am Angebot → am Aufruf → aus der Währung (CHF = Schweiz). Sonst gilt es überall.
+            ctry = _offer_country(raw.get("country")) or call_country or CURRENCY_COUNTRY.get(off["cur"] or "")
+            if ctry:
+                off["ctry"] = ctry
             if reg is not None and float(reg) > off["p"]:
                 off["op"] = round(float(reg), 2)
             url = self._offer_url(raw.get("url"))
@@ -1648,6 +1693,20 @@ class EinkaufslisteManager:
             self.ai_pantry = _name_list(pantry)
         if avoid is not None:
             self.ai_avoid = _name_list(avoid)
+        self._changed()
+
+    def _add_basic(self, name: Any) -> None:
+        """🧂 Einen Namen auf die zentrale Grundvorrat-Liste setzen (ohne Doppelte)."""
+        n = " ".join(str(name or "").split())[:60]
+        if n and n.lower() not in [b.lower() for b in self.basics] and len(self.basics) < 80:
+            self.basics.append(n)
+
+    def set_basics(self, on: Any = None, names: Any = None) -> None:
+        """🧂 Zentrale Grundvorrat-Liste (Salz, Pfeffer, Olivenöl …) und ihr Schalter; None = nicht ändern."""
+        if on is not None:
+            self.basics_on = bool(on)
+        if names is not None:
+            self.basics = _name_list(names, limit=80)
         self._changed()
 
     def set_cards_on(self, on: bool) -> None:
@@ -2655,7 +2714,6 @@ class EinkaufslisteManager:
                 if product_key(ri["name"], ri.get("note")) == from_key:
                     ri["name"], ri["note"] = name, note
                     moved += 1
-            recipe["items"] = sorted(recipe["items"], key=_abc)
         for bc in self.barcodes.values():
             if bc.get("name") and product_key(bc["name"], bc.get("note")) == from_key:
                 bc["name"], bc["note"] = name, note
@@ -4631,8 +4689,11 @@ class EinkaufslisteManager:
                 "for_whom": _clean(raw.get("for_whom")),
                 "store_id": self._check_store(raw.get("store_id")),
                 "category_id": self._check_category(raw.get("category_id")),
-                "basic": bool(raw.get("basic")),  # 🧂 Grundvorrat („haben wir immer“)
+                "basic": False,  # 🧂 Grundvorrat steht nur noch auf der zentralen Liste (gilt in allen Rezepten)
             }
+            if raw.get("basic"):  # 🧂 im Rezept (oder Import) als Grundvorrat markiert -> auf die zentrale Liste
+                self._add_basic(name)
+                self.basics_on = True
             key = _key(entry["name"], entry["note"], entry["for_whom"], entry["store_id"])
             if key in seen:
                 raise ValueError(f"„{name}“ steht doppelt im Rezept.")
@@ -4643,7 +4704,7 @@ class EinkaufslisteManager:
             code = "".join(ch for ch in str(raw.get("barcode") or "") if ch.isdigit())
             if code:  # im Rezept gescannt -> Barcode gehört ab jetzt zu diesem Produkt
                 self.learn_barcode(code, name, entry["store_id"], entry["category_id"], entry["note"])
-        return sorted(out, key=_abc)  # 🔤 Zutaten immer A–Z
+        return out  # 🔀 Reihenfolge wie übergeben (Import = wie im Rezept, Eintippen sortiert die Karte selbst)
 
     def _group(self, value: Any) -> str | None:
         """🏷️ Rezept-Gruppe – nur eine, die es in der Liste gibt, sonst leer."""
@@ -4673,6 +4734,7 @@ class EinkaufslisteManager:
         source: str | None = None,
         minutes: int | None = None,
         step_items: list[Any] | None = None,
+        nutrition: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         recipe = {
             "id": _new_id(),
@@ -4694,6 +4756,9 @@ class EinkaufslisteManager:
         si = _step_items(step_items, recipe_step_count(recipe))
         if si:  # 🥕 Zutaten pro Schritt (im Editor festgelegt)
             recipe["step_items"] = si
+        nut = clean_nutrition(nutrition)
+        if nut:  # 🧮 Nährwerte pro Portion
+            recipe["nutrition"] = nut
         if ai:  # 🤖 von der KI vorgeschlagen – bleibt für immer dran, auch nach dem Bearbeiten
             recipe["ai"] = True
         self.recipes.append(recipe)
@@ -4846,6 +4911,12 @@ class EinkaufslisteManager:
                 recipe["source"] = src
             else:
                 recipe.pop("source", None)
+        if "nutrition" in fields:  # 🧮 Nährwerte pro Portion, leer = weg
+            nut = clean_nutrition(fields["nutrition"])
+            if nut:
+                recipe["nutrition"] = nut
+            else:
+                recipe.pop("nutrition", None)
         if "minutes" in fields:  # ⏱️ Dauer ca., leer = weg
             mins = _minutes(fields["minutes"])
             if mins:
@@ -5019,6 +5090,49 @@ class EinkaufslisteManager:
         self._list(kind).append(entry)
         self._changed()
         return entry
+
+    def ensure_group(self, kind: str, name: str, color: str | None = None, icon: str | None = None) -> dict[str, Any]:
+        """🆕 Für die Aktionen add_store/add_category: anlegen, nur wenn es den Namen (Groß/klein egal) noch nicht gibt."""
+        wanted = (_clean(name) or "").lower()
+        if not wanted:
+            raise ValueError("Ohne Namen geht's nicht.")
+        for entry in self._list(kind):
+            if entry["name"].lower() == wanted:
+                return {"created": False, "id": entry["id"], "name": entry["name"]}
+        entry = self.add_group(kind, name, color, icon)
+        return {"created": True, "id": entry["id"], "name": entry["name"]}
+
+    def service_items(self, status: str, store_id: str | None = None) -> list[dict[str, Any]]:
+        """📋 Für die Aktion get_items: die Liste in lesbarer Form (Namen statt IDs) – nichts wird geändert."""
+        def store_name(sid: str | None) -> str | None:
+            return (self.store_by_id(sid) or {}).get("name")
+
+        def cat_name(cid: str | None) -> str | None:
+            return (self.category_by_id(cid) or {}).get("name")
+
+        if status == "history":
+            out = []
+            for p in self.products():
+                if not p.get("count") and not p.get("last_bought"):
+                    continue  # nur, was wirklich schon mal auf der Liste war
+                if store_id and p.get("store_id") != store_id:
+                    continue
+                out.append({
+                    "name": p["name"], "note": p.get("note"), "store": store_name(p.get("store_id")),
+                    "category": cat_name(p.get("category_id")), "count": p.get("count", 0),
+                    "last_bought": p.get("last_bought"), "last_used": p.get("last_used"),
+                })
+            return out
+        want_checked = status == "checked"
+        return [
+            {
+                "name": i["name"], "store": store_name(i.get("store_id")), "category": cat_name(i.get("category_id")),
+                "quantity": i.get("quantity"), "note": i.get("note"), "for_whom": i.get("for_whom"),
+                "added_by": i.get("added_by"), "added_at": i.get("added_at"), "checked_at": i.get("checked_at"),
+            }
+            for i in self.items
+            if bool(i["checked"]) == want_checked and (store_id is None or i.get("store_id") == store_id)
+        ]
 
     @callback
     def update_group(self, kind: str, group_id: str, **fields: Any) -> dict[str, Any]:

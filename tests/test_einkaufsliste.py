@@ -990,7 +990,7 @@ async def test_recipe_apply_only_selected(hass, setup, hass_ws_client):
     await client.send_json({"id": 1, "type": "einkaufsliste/recipe/apply", "recipe_id": recipe["id"], "items": [0, 2]})
     res = await client.receive_json()
     assert res["success"] and res["result"]["added"] == 2
-    assert sorted(i["name"] for i in m.items if i["recipe_id"]) == ["Eier", "Milch"]  # A–Z: Eier, Mehl, Milch
+    assert sorted(i["name"] for i in m.items if i["recipe_id"]) == ["Mehl", "Milch"]  # 🔀 Reihenfolge wie gespeichert: Mehl, Eier, Milch
     await client.send_json({"id": 2, "type": "einkaufsliste/recipe/apply", "recipe_id": recipe["id"], "items": []})
     assert not (await client.receive_json())["success"]
 
@@ -1322,7 +1322,7 @@ async def test_quantity_in_name_and_units(hass, setup):
     assert a["quantity"] == "2x"
     r = m.add_recipe("Kuchen", items=[{"name": "250g Butter"}, {"name": "Salz", "basic": True}], steps="Teig rühren\n\n Backen  ")
     assert r["items"][0]["name"] == "Butter" and r["items"][0]["quantity"] == "250 g"
-    assert r["items"][1]["basic"] is True and r["steps"] == "Teig rühren\nBacken"
+    assert "Salz" in m.basics and r["steps"] == "Teig rühren\nBacken"  # 🧂 steht jetzt auf der zentralen Liste
     assert m.as_dict()["version"]
 
 
@@ -1373,7 +1373,7 @@ async def test_old_quantities_tidied_on_load(hass, hass_storage):
         assert await hass.config_entries.async_setup(entry.entry_id)
     m = mgr(hass)
     assert m.items[0]["quantity"] == "1x"
-    assert [i["quantity"] for i in m.recipes[0]["items"]] == ["0,5 TL", "3 EL"]  # Salz, Zucker (A–Z)
+    assert [i["quantity"] for i in m.recipes[0]["items"]] == ["3 EL", "0,5 TL"]  # 🔀 Zucker, Salz – Reihenfolge bleibt
     async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=5))
     await hass.async_block_till_done()
     saved = hass_storage["einkaufsliste.data"]["data"]
@@ -1453,14 +1453,24 @@ async def test_recipe_heat(hass, setup, hass_ws_client):
     assert m.recipe_by_id(rid)["heat"] == []
 
 
-async def test_recipe_items_sorted_abc(hass, setup):
-    """🔤 Rezept-Zutaten stehen immer A–Z (Ä wie A, groß/klein egal)."""
+async def test_recipe_items_keep_order(hass, setup):
+    """🔀 Rezept-Zutaten bleiben in der Reihenfolge, in der sie kommen (Import wie im Rezept; A–Z macht die Karte beim Eintippen)."""
     m = mgr(hass)
     r = m.add_recipe("Auflauf", [{"name": "zwiebel"}, {"name": "Äpfel"}, {"name": "Käse", "note": "Gouda"}, {"name": "Käse", "note": "Emmentaler"}, {"name": "Butter"}])
     assert [(i["name"], i["note"]) for i in r["items"]] == [
-        ("Äpfel", None), ("Butter", None), ("Käse", "Emmentaler"), ("Käse", "Gouda"), ("Zwiebel", None)]
+        ("Zwiebel", None), ("Äpfel", None), ("Käse", "Gouda"), ("Käse", "Emmentaler"), ("Butter", None)]
     m.update_recipe(r["id"], items=[{"name": "Salz"}, {"name": "Mehl"}])
-    assert [i["name"] for i in r["items"]] == ["Mehl", "Salz"]
+    assert [i["name"] for i in r["items"]] == ["Salz", "Mehl"]
+
+
+async def test_recipe_order_survives_save(hass, setup):
+    """🔀 Rudis Zwetschgendatschi: Reihenfolge bleibt auch nach dem Speichern."""
+    m = mgr(hass)
+    names = ["Weizenmehl", "Zucker", "Hefe", "Milch", "Zwetschgen", "Vanillezucker", "Ei", "Salz", "Butter", "Zitronenabrieb", "Zimt"]
+    r = m.add_recipe("Zwetschgendatschi", [{"name": n} for n in names])
+    assert [i["name"] for i in r["items"]] == names
+    m.update_recipe(r["id"], name="Zwetschgendatschi vom Blech")  # Speichern ohne Zutaten-Änderung
+    assert [i["name"] for i in r["items"]] == names  # (Laden beim Start: test_old_quantities_tidied_on_load)
 
 
 async def test_recipe_multiple_photos(hass, setup):
@@ -1908,7 +1918,7 @@ In der Pfanne backen.
     assert res["success"], res
     assert res["result"]["added"] == 2
     pf = next(r for r in m.recipes if r["name"] == "Pfannkuchen")
-    assert [i["name"] for i in pf["items"]] == ["Eier", "Mehl", "Milch"] and pf["steps"] == "Alles verrühren.\nIn der Pfanne backen."
+    assert [i["name"] for i in pf["items"]] == ["Mehl", "Eier", "Milch"] and pf["steps"] == "Alles verrühren.\nIn der Pfanne backen."
     us = next(r for r in m.recipes if r["name"] == "Pancakes (US)")
     assert {i["name"]: i["quantity"] for i in us["items"]} == {"Flour": "125 g", "Sugar": "2 EL"}
     # CSV – gleicher Name bekommt „(Import)“
@@ -2800,6 +2810,66 @@ async def test_read_limited_reads_all_chunks() -> None:
 
     assert await read_limited(Stream([b"ab", b"cd", b"ef"]), 100) == b"abcdef"  # nicht nur das erste Stück
     assert await read_limited(Stream([b"abc", b"def"]), 4) is None  # zu groß
+
+
+async def test_photo_search_by_name(hass, setup, hass_ws_client, aioclient_mock):
+    """🔎 Foto per Name suchen (ohne Barcode): bis zu 4 Treffer mit Vorschaubild, antippen = übernehmen, eigene bleiben."""
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    base = "https://images.openfoodfacts.org/images/products/"
+    products = [
+        {"code": "1", "product_name": "Laugenbrezel", "brands": "Bäcker", "image_front_url": base + "1/front.400.jpg", "image_front_small_url": base + "1/front.200.jpg"},
+        {"code": "2", "product_name": "Böse", "image_front_url": "https://evil.example.com/x.jpg"},  # fremder Server: fliegt raus
+        {"code": "3", "product_name": "Ohne Bild"},
+        {"code": "4", "product_name": "Brezel", "image_front_url": base + "4/front.400.jpg"},
+        {"code": "5", "product_name": "Doppelt", "image_front_url": base + "1/front.400.jpg"},  # gleiches Bild nur einmal
+    ]
+    aioclient_mock.get("https://world.openfoodfacts.org/cgi/search.pl", json={"products": products})
+    for db in ("openbeautyfacts", "openproductsfacts"):
+        aioclient_mock.get(f"https://world.{db}.org/cgi/search.pl", json={"products": []})
+    aioclient_mock.get(base + "1/front.200.jpg", content=JPEG)
+    aioclient_mock.get(base + "4/front.400.jpg", content=JPEG)
+    aioclient_mock.get(base + "1/front.400.jpg", content=JPEG)
+    await client.send_json({"id": 1, "type": "einkaufsliste/photo/search", "query": "Brezel"})
+    res = await client.receive_json()
+    assert res["success"], res
+    found = res["result"]["results"]
+    assert [r["url"] for r in found] == [base + "1/front.400.jpg", base + "4/front.400.jpg"]
+    assert found[0]["thumb"].startswith("data:image/jpeg;base64,") and found[0]["name"] == "Laugenbrezel"
+    assert res["result"]["reached"] is True
+
+    # zu kurz
+    await client.send_json({"id": 2, "type": "einkaufsliste/photo/search", "query": "B"})
+    assert not (await client.receive_json())["success"]
+
+    # übernehmen: kommt zum Produkt (ohne Barcode), zweites Foto kommt DAZU
+    await client.send_json({"id": 3, "type": "einkaufsliste/photo/take", "name": "Brezel", "url": found[1]["url"]})
+    res = await client.receive_json()
+    assert res["success"] and res["result"]["count"] == 1
+    first = m.photos["brezel"]["id"]
+    await client.send_json({"id": 4, "type": "einkaufsliste/photo/take", "name": "Brezel", "url": found[0]["url"]})
+    assert (await client.receive_json())["result"]["count"] == 2
+    assert m.photos["brezel"]["id"] == first  # das erste bleibt Hauptfoto
+
+    # fremde Adresse wird nicht geladen
+    await client.send_json({"id": 5, "type": "einkaufsliste/photo/take", "name": "Brezel", "url": "https://evil.example.com/x.jpg"})
+    assert not (await client.receive_json())["success"]
+
+    # 🔒 Datenschutz an: keine Suche, kein Laden
+    m.privacy = True
+    await client.send_json({"id": 6, "type": "einkaufsliste/photo/search", "query": "Brezel"})
+    assert not (await client.receive_json())["success"]
+    await client.send_json({"id": 7, "type": "einkaufsliste/photo/take", "name": "Brezel", "url": found[0]["url"]})
+    assert not (await client.receive_json())["success"]
+    m.privacy = False
+
+    # Datenbank nicht erreichbar: leere Liste, reached False
+    aioclient_mock.clear_requests()
+    for db in ("openfoodfacts", "openbeautyfacts", "openproductsfacts"):
+        aioclient_mock.get(f"https://world.{db}.org/cgi/search.pl", status=503)
+    await client.send_json({"id": 8, "type": "einkaufsliste/photo/search", "query": "Brezel"})
+    res = await client.receive_json()
+    assert res["success"] and res["result"] == {"results": [], "reached": False}
 
 
 async def test_cut_photos_found_and_refreshed(hass: HomeAssistant, setup, monkeypatch) -> None:
@@ -3784,6 +3854,52 @@ async def test_ai_cook(hass, setup, hass_ws_client, hass_read_only_access_token)
     m.set_privacy(True)
     seen.clear()
     await client.send_json({"id": 67, "type": "einkaufsliste/ai/cook", "ingredients": ["Reis"]})
+    assert "Datenschutz" in (await client.receive_json())["error"]["message"] and not seen
+
+
+async def test_ai_photo(hass, setup, hass_ws_client, tmp_path):
+    """📷🤖 Rezeptfoto per ai_task lesen: Bild geht als Medien-Datei raus und wird danach gelöscht, Antwort wird geprüft."""
+    import base64
+    from pathlib import Path
+    from homeassistant.core import SupportsResponse
+    m = mgr(hass)
+    client = await hass_ws_client(hass)
+    hass.config.media_dirs = {"local": str(tmp_path)}
+    seen = {}
+    reply = {"data": {"name": "  Brokkoli-Nudeln ", "servings": "4", "minutes": 25,
+                      "ingredients": ["400 g Nudeln", "500 g Brokkoli", ""], "steps": ["Kochen", "Mischen"]}}
+
+    async def gen(call):
+        seen.update(call.data)
+        seen["existed"] = [Path(tmp_path, ".einkaufsliste_tmp", a["media_content_id"].rsplit("/", 1)[-1]).exists() for a in call.data["attachments"]]
+        return reply
+
+    hass.services.async_register("ai_task", "generate_data", gen, supports_response=SupportsResponse.ONLY)
+    jpg = "data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8\xff\xe0fake").decode()
+    await client.send_json({"id": 1, "type": "einkaufsliste/ai/photo", "images": [jpg]})
+    assert "aus" in (await client.receive_json())["error"]["message"]
+    hass.states.async_set("conversation.test_ki", "unknown")
+    await client.send_json({"id": 2, "type": "einkaufsliste/ai/agent", "entity_id": "conversation.test_ki"})
+    assert (await client.receive_json())["success"] and m.ai_on
+    await client.send_json({"id": 3, "type": "einkaufsliste/ai/photo", "images": [jpg]})
+    assert "ai_task" in (await client.receive_json())["error"]["message"]
+    hass.states.async_set("ai_task.test", "unknown")
+    await client.send_json({"id": 4, "type": "einkaufsliste/ai/photo", "images": ["data:image/png;base64,AAAA"]})
+    assert "JPEG" in (await client.receive_json())["error"]["message"]
+    await client.send_json({"id": 5, "type": "einkaufsliste/ai/photo", "images": [jpg]})
+    res = await client.receive_json()
+    assert res["success"], res
+    r = res["result"]["recipe"]
+    assert r["name"] == "Brokkoli-Nudeln" and r["ingredients"] == ["400 g Nudeln", "500 g Brokkoli"]
+    assert r["servings"] == 4 and r["minutes"] == 25 and r["steps"] == ["Kochen", "Mischen"]
+    assert seen["entity_id"] == "ai_task.test" and seen["existed"] == [True] and "structure" in seen
+    assert not list(Path(tmp_path).rglob("*.jpg")) and not Path(tmp_path, ".einkaufsliste_tmp").exists()
+    reply["data"] = {"name": "x"}
+    await client.send_json({"id": 6, "type": "einkaufsliste/ai/photo", "images": [jpg]})
+    assert "kein Rezept" in (await client.receive_json())["error"]["message"]
+    m.set_privacy(True)
+    seen.clear()
+    await client.send_json({"id": 7, "type": "einkaufsliste/ai/photo", "images": [jpg]})
     assert "Datenschutz" in (await client.receive_json())["error"]["message"] and not seen
 
 
@@ -5337,3 +5453,278 @@ async def test_mealie_import_alias_duplicates(hass, setup, hass_ws_client, aiocl
     assert res["result"]["failed_info"][0]["slug"] == "weg" and res["result"]["failed_info"][0]["reason"]
     rec = next(r for r in m.recipes if r["name"] == "Risotto")
     assert sorted((i["name"], i["note"] or "") for i in rec["items"]) == [("Cheddar", ""), ("Cheddar", "Geriebener Cheddar")]
+
+
+# ---------------------------------------------------------------- 🆕 Beta 2.76.28
+async def test_offers_get_country(hass, setup):
+    """🌍 Angebote merken sich ihr Land: am Angebot, am Aufruf oder aus der Währung (CHF = Schweiz)."""
+    m = mgr(hass)
+    m.report_offers([
+        {"name": "Milch", "price": 1.2, "store": "Aldi", "country": "ch"},
+        {"name": "Käse", "price": 3.5, "store": "Aldi", "currency": "CHF"},
+        {"name": "Brot", "price": 2.0, "store": "Aldi"},
+    ], source="test")
+    by = {o["n"]: o for o in m.offers_ext["test"]}
+    assert by["Milch"]["ctry"] == "CH"
+    assert by["Käse"]["ctry"] == "CH"
+    assert "ctry" not in by["Brot"]  # ohne Land gilt es überall
+    m.report_offers([{"name": "Brot", "price": 2.0, "store": "Aldi"}], source="de", country="DE")
+    assert m.offers_ext["de"][0]["ctry"] == "DE"
+
+
+async def test_basics_list(hass, setup):
+    """🧂 Grundvorrat-Liste wird gespeichert und als Einstellung geliefert."""
+    m = mgr(hass)
+    m.set_basics(True, ["Salz", "Pfeffer", "Salz", ""])
+    assert m.basics_on is True
+    assert m.basics == ["Salz", "Pfeffer"]
+    m.set_basics(False)
+    assert m.basics_on is False and m.basics == ["Salz", "Pfeffer"]
+
+
+def test_mealie_zip_and_schema_json():
+    """🍲 Mealie-Export (.zip mit Bild) und schema.org-JSON werden gelesen."""
+    import io, json, zipfile
+    from custom_components.einkaufsliste.recipe_import import OwnFormat, parse_recipe_file
+
+    mealie = {
+        "name": "Ofenkartoffeln", "recipeServings": 4, "totalTime": "PT45M",
+        "recipeIngredient": [
+            {"title": "Für die Kartoffeln"},
+            {"quantity": 1, "unit": {"name": "kg"}, "food": {"name": "Kartoffeln"}, "note": ""},
+            {"note": "Salz"},
+        ],
+        "recipeInstructions": [
+            {"text": "Backofen auf 200 °C Umluft vorheizen."},
+            {"text": "Kartoffeln 35 Minuten backen."},
+        ],
+    }
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("ofenkartoffeln/ofenkartoffeln.json", json.dumps(mealie))
+        zf.writestr("ofenkartoffeln/images/original.webp", b"RIFF0000WEBP")
+    recs = parse_recipe_file(buf.getvalue(), "mealie.zip")
+    assert len(recs) == 1
+    r = recs[0]
+    assert r["name"] == "Ofenkartoffeln" and r["minutes"] == 45 and r["servings"] == 4
+    names = [i["name"] for i in r["items"]]
+    assert "Kartoffeln" in names and "Salz" in names and len(names) == 2
+    assert len(r["steps"].split("\n")) == 2
+    assert r["image"].startswith("data:image/webp;base64,")
+
+    schema = {"@context": "https://schema.org", "@graph": [
+        {"@type": "WebPage"},
+        {"@type": "Recipe", "name": "Pfannkuchen", "recipeIngredient": ["200 g Mehl", "2 Eier"],
+         "recipeInstructions": [{"@type": "HowToStep", "text": "Alles verrühren."}]},
+    ]}
+    recs = parse_recipe_file(json.dumps(schema).encode(), "rezept.json")
+    assert recs[0]["name"] == "Pfannkuchen" and len(recs[0]["items"]) == 2
+
+    with pytest.raises(OwnFormat):
+        parse_recipe_file(json.dumps({"einkaufsliste_rezepte": 1, "recipes": []}).encode(), "x.json")
+    with pytest.raises(ValueError):
+        parse_recipe_file(b"", "x.json")
+
+
+def test_heat_from_steps():
+    """🔥 Backofen & Airfryer aus den Schritten herauslesen."""
+    from custom_components.einkaufsliste.recipe_heat import guess_heat
+
+    rows = guess_heat([
+        "Backofen auf 180 °C Umluft vorheizen.",
+        "Teig schichten.",
+        "30-35 Minuten backen.",
+        "Pommes in der Heißluftfritteuse bei 200 Grad 15 Min garen.",
+        "Fritteuse sauber machen.",
+    ])
+    assert len(rows) == 2
+    oven, fryer = rows
+    assert oven["device"] == "Backofen" and oven["mode"] == "Umluft" and oven["temp"] == 180
+    assert oven["preheat"] is True and oven["minutes"] == 30 and oven["minutes_to"] == 35
+    assert oven["steps"] == [1, 3]
+    assert fryer["device"] == "Heißluftfritteuse" and fryer["temp"] == 200 and fryer["minutes"] == 15
+    assert fryer["steps"] == [4]
+    assert guess_heat("") == []
+
+
+async def test_basics_one_list_moves_old_marks(hass, hass_storage):
+    """🧂 Nur noch EIN Grundvorrat: alte 🧂-Haken in Rezepten wandern einmal auf die zentrale Liste, „abgewählt“ fällt weg."""
+    await hass.config.async_set_time_zone(TZ)
+    rec = {"id": "r1", "name": "Suppe", "items": [{"name": "Pfeffer", "no_basic": True}, {"name": "Lauch", "basic": True}], "steps": None}
+    hass_storage["einkaufsliste.data"] = {
+        "version": 1, "key": "einkaufsliste.data",
+        "data": {"stores": [], "categories": [], "history": {}, "items": [], "recipes": [rec],
+                 "last_cleanup": dt_util.utcnow().isoformat(), "basics": ["Salz"], "basics_on": False},
+    }
+    assert await async_setup_component(hass, "http", {})
+    hass.config.components.update({"frontend", "lovelace"})
+    entry = MockConfigEntry(domain=DOMAIN, options={"cleanup_weekday": 6, "cleanup_time": "03:00:00", "min_age_days": 7})
+    entry.add_to_hass(hass)
+    with patch("custom_components.einkaufsliste.frontend.add_extra_js_url"):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+    m = mgr(hass)
+    items = {i["name"]: i for i in m.recipes[0]["items"]}
+    assert "no_basic" not in items["Pfeffer"] and items["Lauch"]["basic"] is False
+    assert m.basics == ["Salz", "Lauch"] and m.basics_on is True and m.basics_one is True
+
+
+async def test_recipe_basic_mark_goes_to_central_list(hass, setup):
+    """🧂 Zutat im Rezept als Grundvorrat markiert = steht auf der zentralen Liste (gilt in allen Rezepten)."""
+    m = mgr(hass)
+    m.set_basics(False, [])
+    m.add_recipe("Nudeln", [{"name": "Nudeln"}, {"name": "Olivenöl", "basic": True}])
+    assert m.basics == ["Olivenöl"] and m.basics_on is True
+    assert all(i["basic"] is False for i in m.recipes[-1]["items"])
+
+
+def test_mealie_export_with_underscores():
+    """🍲 Echter Mealie-Export (Felder mit Unterstrich, z. B. „recipe_ingredient“) – Rudis Lasagne aus Issue #24."""
+    import json
+    from custom_components.einkaufsliste.recipe_import import parse_recipe_file
+
+    unit = lambda name, abbr="": {"name": name, "abbreviation": abbr}  # noqa: E731
+    ing = lambda q, u, food, note="": {"quantity": q, "unit": u, "food": {"name": food}, "note": note, "display": "", "title": None, "original_text": None}  # noqa: E731
+    mealie = {
+        "name": "Lasagne Bolognese", "recipe_servings": 4.0, "recipe_yield_quantity": 0.0, "recipe_yield": "",
+        "total_time": None, "total_time_seconds": 7200, "prep_time_seconds": 3600, "perform_time_seconds": 3600,
+        "org_url": "https://www.chefkoch.de/rezepte/1112181217260303/Lasagne-Bolognese.html",
+        "recipe_ingredient": [
+            ing(8.0, unit("Stück"), "Lasagne-Platte", "(vorgegarte)"),
+            ing(600.0, unit("Gramm", "g"), "gemischtes Hackfleisch"),
+            ing(2.0, unit("Esslöffel", "EL"), "Butter"),
+            ing(500.0, unit("Milliliter", "ml"), "Milch"),
+        ],
+        "recipe_instructions": [{"title": "Zubereitung", "text": "Gemüse würfeln und anbraten."},
+                                {"title": "", "text": "Im vorgeheizten Backofen bei 180 °C Ober-/Unterhitze ca. 20 Minuten überbacken."}],
+        "nutrition": {"calories": "898", "carbohydrate_content": "46.7", "fat_content": "55.2", "protein_content": "44.8",
+                      "fiber_content": None, "sodium_content": None, "sugar_content": None},
+    }
+    r = parse_recipe_file(json.dumps(mealie).encode(), "lasagne-bolognese.json")[0]
+    assert [i["name"] for i in r["items"]] == ["Lasagne-Platte", "Gemischtes Hackfleisch", "Butter", "Milch"]  # 🔀 Reihenfolge bleibt
+    assert len(r["steps"].split("\n")) == 2
+    assert r["servings"] == 4 and r["minutes"] == 120
+    assert r["source"].startswith("https://www.chefkoch.de/")
+    assert r["nutrition"] == {"kcal": 898, "protein": 44.8, "fat": 55.2, "carbs": 46.7}
+
+
+def test_link_import_servings_and_nutrition():
+    """🍽️ Chefkoch & Co.: Portionen und 🧮 Nährwerte aus dem schema.org-Rezept der Seite."""
+    from custom_components.einkaufsliste.recipe_import import parse_html
+
+    page = """<script type="application/ld+json">{"@type":"Recipe","name":"Lasagne Bolognese","recipeYield":"4 Portionen",
+      "recipeIngredient":["8 Lasagneplatte(n)","600 g Hackfleisch, gemischtes","2 EL Butter"],
+      "nutrition":{"@type":"NutritionInformation","calories":"898 kcal","proteinContent":"44,8g","fatContent":"55,2g",
+                   "carbohydrateContent":"46,7g","sodiumContent":"400 mg"}}</script>"""
+    info = parse_html(page)
+    assert info["servings"] == 4
+    assert [i["name"] for i in info["items"]][0].startswith("Lasagneplatte")  # 🔀 nicht ABC
+    assert info["nutrition"] == {"kcal": 898, "protein": 44.8, "fat": 55.2, "carbs": 46.7, "salt": 1.0}
+
+
+def test_clean_nutrition():
+    """🧮 Nährwerte: nur bekannte Felder, Zahlen im sinnvollen Bereich, kJ werden zu kcal."""
+    from custom_components.einkaufsliste.nutrition import clean_nutrition, nutrition_from_schema
+
+    assert clean_nutrition({"kcal": "898,4", "fat": 55.25, "foo": 3, "protein": -1, "salt": "abc"}) == {"kcal": 898, "fat": 55.2}
+    assert clean_nutrition({}) is None and clean_nutrition("x") is None
+    assert nutrition_from_schema({"calories": "3757 kJ"}) == {"kcal": 898}
+
+
+async def test_recipe_nutrition_saved(hass: HomeAssistant, setup) -> None:
+    """🧮 Nährwerte am Rezept speichern, ändern und wieder leeren."""
+    m = mgr(hass)
+    r = m.add_recipe("Lasagne", [{"name": "Nudeln"}], nutrition={"kcal": 898, "protein": "44.8", "bla": 1})
+    assert r["nutrition"] == {"kcal": 898, "protein": 44.8}
+    m.update_recipe(r["id"], nutrition={"fat": 55.2})
+    assert m.recipe_by_id(r["id"])["nutrition"] == {"fat": 55.2}
+    m.update_recipe(r["id"], nutrition=None)
+    assert "nutrition" not in m.recipe_by_id(r["id"])
+
+
+async def test_ai_nutrition(hass, setup, hass_ws_client):
+    """🤖🧮 Rezept-Editor: Nährwerte von der KI schätzen – Antwort aufgeräumt, aus/Datenschutz/Müll verständlich."""
+    from homeassistant.core import SupportsResponse
+    m = mgr(hass)
+    client = await hass_ws_client(hass)
+    seen = {}
+    reply = {"text": '```json\n{"kcal": 412.6, "protein": "18,4", "fat": 15, "carbs": 52.25, "sugar": 0, "salt": 1.234, "quatsch": 9}\n```'}
+
+    async def process(call):
+        seen.update(call.data)
+        return {"response": {"response_type": "action_done", "speech": {"plain": {"speech": reply["text"]}}}}
+
+    hass.services.async_register("conversation", "process", process, supports_response=SupportsResponse.ONLY)
+    hass.states.async_set("conversation.test_ki", "unknown")
+    msg = {"type": "einkaufsliste/ai/nutrition", "items": ["250 g Mehl", "3 Eier", "500 ml Milch"], "servings": 4}
+    await client.send_json({"id": 1, **msg})
+    assert "aus" in (await client.receive_json())["error"]["message"]
+    await client.send_json({"id": 2, "type": "einkaufsliste/ai/agent", "entity_id": "conversation.test_ki"})
+    assert (await client.receive_json())["success"]
+    await client.send_json({"id": 3, **msg})
+    res = await client.receive_json()
+    assert res["success"], res
+    assert res["result"]["nutrition"] == {"kcal": 413, "protein": 18.4, "fat": 15.0, "carbs": 52.2, "salt": 1.23}
+    assert "250 g Mehl" in seen["text"] and "4 Portionen" in seen["text"]
+    await client.send_json({"id": 4, **msg, "items": []})
+    assert "Zutaten" in (await client.receive_json())["error"]["message"]
+    reply["text"] = "Keine Ahnung"
+    await client.send_json({"id": 5, **msg})
+    assert "lesbaren" in (await client.receive_json())["error"]["message"]
+    m.set_privacy(True)
+    seen.clear()
+    await client.send_json({"id": 6, **msg})
+    assert "Datenschutz" in (await client.receive_json())["error"]["message"] and not seen
+
+
+async def test_service_get_update_and_groups(hass, setup):
+    """📋 get_items, ✏️ update_item, 🏪 add_store/add_category und create_missing (Issues #37–#39)."""
+    m = mgr(hass)
+    await hass.services.async_call(DOMAIN, "add_item", {"name": "Milch", "store": "Aldi", "quantity": "2"}, blocking=True)
+    await hass.services.async_call(DOMAIN, "add_item", {"name": "Brot"}, blocking=True)
+    first = [i["id"] for i in m.items]
+
+    res = await hass.services.async_call(DOMAIN, "get_items", {}, blocking=True, return_response=True)
+    assert res["status"] == "open" and res["count"] == 2
+    milch = next(i for i in res["items"] if i["name"] == "Milch")
+    assert milch["store"] == "Aldi" and milch["quantity"]
+
+    res = await hass.services.async_call(DOMAIN, "get_items", {"store": "aldi"}, blocking=True, return_response=True)
+    assert [i["name"] for i in res["items"]] == ["Milch"]
+
+    # ✏️ nur die Menge und das Geschäft ändern – Notiz bleibt, Platz in der Liste bleibt
+    res = await hass.services.async_call(
+        DOMAIN, "update_item", {"name": "milch", "quantity": "3 Liter", "new_store": "Lidl", "note": "Bio"},
+        blocking=True, return_response=True,
+    )
+    assert res["item"]["quantity"].startswith("3") and m.store_by_id(res["item"]["store_id"])["name"] == "Lidl"
+    assert [i["id"] for i in m.items] == first
+    await hass.services.async_call(DOMAIN, "update_item", {"name": "Milch", "store": "Lidl", "quantity": "1"}, blocking=True)
+    assert m.find_item("Milch")["note"] == "Bio"
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(DOMAIN, "update_item", {"name": "Gibtsnicht", "quantity": "1"}, blocking=True)
+
+    await hass.services.async_call(DOMAIN, "check_item", {"name": "Brot"}, blocking=True)
+    res = await hass.services.async_call(DOMAIN, "get_items", {"status": "checked"}, blocking=True, return_response=True)
+    assert [i["name"] for i in res["items"]] == ["Brot"] and res["items"][0]["checked_at"]
+    res = await hass.services.async_call(DOMAIN, "get_items", {"status": "history"}, blocking=True, return_response=True)
+    assert {"Milch", "Brot"} <= {i["name"] for i in res["items"]}
+    assert all("count" in i for i in res["items"])
+
+    # 🏪 Geschäft/Kategorie anlegen – doppelt = nichts passiert
+    n = len(m.stores)
+    res = await hass.services.async_call(DOMAIN, "add_store", {"name": "Edeka", "icon": "mdi:cart"}, blocking=True, return_response=True)
+    assert res["created"] and len(m.stores) == n + 1
+    res = await hass.services.async_call(DOMAIN, "add_store", {"name": "edeka"}, blocking=True, return_response=True)
+    assert not res["created"] and len(m.stores) == n + 1
+    res = await hass.services.async_call(DOMAIN, "add_category", {"name": "Tierbedarf", "icon": "dog"}, blocking=True, return_response=True)
+    assert res["created"] and m.category_by_id(res["id"])["icon"] == "mdi:dog"
+
+    # 🆕 create_missing: nur auf Wunsch wird Unbekanntes angelegt
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(DOMAIN, "add_item", {"name": "Futter", "store": "Fressnapf"}, blocking=True)
+    res = await hass.services.async_call(
+        DOMAIN, "add_item", {"name": "Futter", "store": "Fressnapf", "category": "Haustier", "create_missing": True},
+        blocking=True, return_response=True,
+    )
+    assert m.store_by_id(res["item"]["store_id"])["name"] == "Fressnapf"
+    assert m.category_by_id(res["item"]["category_id"])["name"] == "Haustier"

@@ -777,6 +777,295 @@ r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const 
   ov?._elClose(); c._hass.callWS=old; return res; });
 check("▶️ Weitermachen: ohne Personen-Auswahl direkt bei Schritt 3, Personenzahl gemerkt", !r.intro && r.pos === "Schritt 3 von 5" && r.pers === "3", JSON.stringify(r));
 
+// 🆕 Beta 2.76.28: Wer ist im Laden, Angebote je Land, Grundvorrat
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const d=c._data; const st=d.stores[1]; const states=c._hass.states;
+  const keepZones=st.zones, keepZone=st.zone, keepCtry=st.country, keepTab=c._tab, keepSet={...d.settings}, keepOffers=d.offers;
+  states["zone.testladen"]={entity_id:"zone.testladen", state:"2", attributes:{persons:["person.anna","person.ben"]}};
+  states["person.anna"]={entity_id:"person.anna", state:"Testladen", attributes:{friendly_name:"Anna"}};
+  states["person.ben"]={entity_id:"person.ben", state:"Testladen", attributes:{friendly_name:"Ben"}};
+  st.zones=["zone.testladen"]; st.zone="zone.testladen"; c._tab=st.id; c._view="list"; c._renderAll(); await new Promise(r=>setTimeout(r,60));
+  const bar=c.shadowRoot.querySelector("#hereBar"); const here={ hidden:bar?.hidden, text:bar?.textContent||"", ring:!!c.shadowRoot.querySelector(".tab.active.here") };
+  st.country="DE"; d.offers={ milch:[{n:"Milch",r:"Aldi",p:1.1,ctry:"CH"},{n:"Milch",r:"Aldi",p:1.2,ctry:"DE"},{n:"Milch",r:"Aldi",p:1.3}] };
+  const offers=c._offersFor({name:"Milch", store_id:st.id}).map(o=>o.p); const noStore=c._offersFor({name:"Milch"}).length;
+  d.settings.basics_on=true; d.settings.basics=["Salz","Olivenöl"];
+  const basic={ salz:c._isBasic({name:"Salz"}), oel:c._isBasic({name:"Olivenöl extra"}), mehl:c._isBasic({name:"Mehl"}) };
+  delete states["zone.testladen"]; delete states["person.anna"]; delete states["person.ben"];
+  st.zones=keepZones; st.zone=keepZone; st.country=keepCtry; c._tab=keepTab; d.settings=keepSet; d.offers=keepOffers; c._renderAll();
+  return { here, offers, noStore, basic }; });
+check("📍 Gerade dort: Namen über der Liste, Rand am Reiter", !r.here.hidden && /Anna, Ben/.test(r.here.text) && r.here.ring, JSON.stringify(r.here));
+check("🌍 Angebote: CH-Angebot nicht beim deutschen Geschäft, ohne Geschäft alles", r.offers.join() === "1.2,1.3" && r.noStore === 3, JSON.stringify(r));
+check("🧂 Grundvorrat-Liste: Salz/Olivenöl ja, Mehl nein", r.basic.salz && r.basic.oel && !r.basic.mehl, JSON.stringify(r.basic));
+
+// 🧂 beta.3: nur EIN Grundvorrat – 🧂-Knopf im Editor ändert die zentrale Liste
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const d=c._data; const keepSet={...d.settings}; const sent=[];
+  d.settings.basics_on=true; d.settings.basics=["Pfeffer","Salz"]; c._ws=async(m)=>{ sent.push(m); return {}; };
+  c._openRecipe(null); await new Promise(r=>setTimeout(r,80));
+  c.$("inName").value="Pfeffer"; await c._addRecipeIngredient(); await new Promise(r=>setTimeout(r,30));
+  const a={...c._draft.items.find(i=>i.name==="Pfeffer")}; const aBasic=c._isBasic(a); const sentA=sent.filter(m=>m.type==="einkaufsliste/recipe/basics").length;
+  const meta=c.$("rItems")?.textContent || "";
+  c.$("inName").value="Zimt"; c._setBasic(true, true); await c._addRecipeIngredient(); await new Promise(r=>setTimeout(r,30));
+  const zimt=[...d.settings.basics];
+  c.$("inName").value="Pfeffer schwarz"; c._setBasic(false, true); await c._addRecipeIngredient(); await new Promise(r=>setTimeout(r,30));
+  const after=[...d.settings.basics]; const pBasic=c._isBasic({name:"Pfeffer"});
+  const last=sent.filter(m=>m.type==="einkaufsliste/recipe/basics").pop();
+  d.settings=keepSet; let n=0; while(c._page && n++<6) c._pageBack(); c._view="list"; c._renderAll();
+  return { a, aBasic, sentA, label:/Grundvorrat/.test(meta) && !/\(Liste\)/.test(meta), zimt, after, pBasic, last }; });
+check("🧂 Neue Zutat „Pfeffer“ ohne Knopf: Grundvorrat aus der Liste, nichts geändert", r.aBasic && !r.a.basic && !r.a.no_basic && r.sentA === 0, JSON.stringify(r));
+check("🧂 Überall dasselbe „🧂 Grundvorrat“ (kein „(Liste)“)", r.label, JSON.stringify(r));
+check("🧂 Knopf an bei „Zimt“ = kommt auf die zentrale Liste", r.zimt.join() === "Pfeffer,Salz,Zimt", JSON.stringify(r.zimt));
+check("🧂 Knopf aus bei „Pfeffer schwarz“ = Pfeffer fliegt überall raus", r.after.join() === "Salz,Zimt" && !r.pBasic && r.last?.names?.join() === "Salz,Zimt", JSON.stringify(r));
+
+// 🧪 beta.4: „Neu in dieser Beta“ – höchste Beta-Nummer oben
+r = await p.evaluate(() => { const c=document.querySelector('#c1'); const h=c._newsHtml(false); const box=document.createElement("div"); box.innerHTML=h;
+  const nos=[...box.querySelectorAll("ul li > b")].map(b=>b.textContent).filter(t=>/^beta\.\d+$/.test(t)).map(t=>+t.split(".")[1]);
+  return { nos }; });
+r.beta = /const EL_VERSION = "[^"]*-beta/.test(fs.readFileSync(path.join(root, "custom_components/einkaufsliste/www/einkaufsliste-card.js"), "utf8"));
+// Offizielle Version (ohne „-beta“): kein Beta-Kasten, dann nur prüfen, dass auch keine Beta-Nummern auftauchen
+if (r.beta) check("🧪 Beta-Kasten: neueste Beta oben", r.nos.length > 1 && r.nos.every((n,i)=>i===0 || n<=r.nos[i-1]), JSON.stringify(r));
+else check("🧪 Offizielle Version: kein Beta-Kasten, keine Beta-Nummern", r.nos.length === 0, JSON.stringify(r));
+
+// 📷 beta.4: „Rezept vorschlagen“ liest ein Rezept-Foto wie der Editor
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const calls=[];
+  c._ws=async(m)=>{ calls.push(m.type); return m.type==="einkaufsliste/recipe/heat_guess" ? { heat:[{device:"Backofen",mode:"Umluft",temp:180,minutes:25}] } : {}; };
+  c._ocrText=async()=>"Omas Apfelkuchen\nZutaten\n200 g Mehl\n3 Eier\nZubereitung\nBackofen auf 180 °C Umluft vorheizen.\nTeig rühren und 25 Minuten backen.";
+  c._pickFile=async()=>{ const t=c._photoTarget; setTimeout(()=>t.ocr("data:image/png;base64,iVBORw0KGgo="),10); };
+  c._proposeRecipe(); await new Promise(r=>setTimeout(r,120));
+  const root=document.querySelector("[data-elpage]")||c.shadowRoot; const q=(s)=>root.querySelector(s)||c.shadowRoot.querySelector(s)||document.querySelector(s);
+  q("[data-pocr]").click(); await new Promise(r=>setTimeout(r,250));
+  [...document.querySelectorAll("[data-elconfirm] button")].find(b=>/Rezept lesen/.test(b.textContent))?.click(); // 📷 Text zu sehen → immer fragen
+  await new Promise(r=>setTimeout(r,250));
+  const fertig=[...document.querySelectorAll("[data-elconfirm] button")].find(b=>/Fertig/.test(b.textContent)); fertig?.click();
+  await new Promise(r=>setTimeout(r,400));
+  const out={ hasBtn:true, fertig:!!fertig, name:q("[data-pn]")?.value, ing:q("[data-pi]")?.value, steps:q("[data-ps]")?.value, heat:q("[data-ph]")?.value, hint:q("[data-pphint]")?.textContent, calls };
+  c._propPhoto=null; let n=0; while(c._page && n++<6) c._pageBack(); document.querySelectorAll("[data-elov],[data-elconfirm]").forEach(e=>e.remove()); c._view="list"; c._renderAll();
+  return out; });
+check("📷 Vorschlag: Rezept aus Fotos füllt Name, Zutaten, Schritte, Backofen und Foto", r.fertig && r.name==="Omas Apfelkuchen" && /200 g Mehl/.test(r.ing||"") && /vorheizen/.test(r.steps||"") && /Backofen Umluft 180 °C 25 Min/.test(r.heat||"") && /Foto ist dabei/.test(r.hint||""), JSON.stringify(r));
+
+// 41) 🧮 Nährwerte + 🔀 Reihenfolge beim Import: Entwurf behält die Reihenfolge, Editor zeigt/speichert Nährwerte, Liste zeigt sie, Foto-Text liefert sie
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const calls=[]; const oldWs=c._ws; c._ws=async(m)=>{ calls.push(m); return m.type==="einkaufsliste/recipe/add"?{id:"rnew"}:{}; };
+  c._openRecipeDraft({ name:"Lasagne Bolognese", items:[{name:"Lasagneplatte"},{name:"Hackfleisch",quantity:"600 g"},{name:"Butter"},{name:"Milch"}], servings:4, nutrition:{kcal:898,protein:44.8,fat:55.2,carbs:46.7} });
+  await new Promise(r=>setTimeout(r,80));
+  const order=c._draft.items.map(i=>i.name).join(","), serv=c.$("rServings")?.value;
+  const nut=[...c.shadowRoot.querySelectorAll("[data-nut]")].map(i=>i.dataset.nut+"="+i.value).join(",");
+  const kc=c.shadowRoot.querySelector('[data-nut="kcal"]'); if (kc) kc.value="900";
+  try { await c._saveRecipe(); } catch (err) {} await new Promise(r=>setTimeout(r,80));
+  const sent=calls.find(m=>m.type==="einkaufsliste/recipe/add");
+  c._data.recipes=[{id:"rn1",name:"Lasagne",items:[{name:"Hack"}],steps:"Backen",heat:[],nutrition:{kcal:898,protein:44.8,fat:55.2,carbs:46.7}}];
+  c._view="recipes"; c._renderAll(); await new Promise(r=>setTimeout(r,80));
+  const line=c.shadowRoot.querySelector('.recipe[data-id="rn1"] .rnut')?.textContent||"";
+  // 📷 Foto im Editor: Text mit Nährwert-Tabelle
+  c._openRecipe(null); await new Promise(r=>setTimeout(r,80));
+  const oldOcr=c._ocrText; c._ocrText=async()=>"Lasagne\nZutaten\n200 g Mehl\n1 Prise Salz\nNährwerte pro Portion\nBrennwert 898 kcal\nEiweiß 44,8 g\nFett 55,2 g\nKohlenhydrate 46,7 g\nZubereitung\nAlles schichten und backen.";
+  c._pickFile=async()=>{ const t=c._photoTarget; setTimeout(()=>t.ocr("data:image/png;base64,iVBORw0KGgo="),10); };
+  c._recipeFromPhotos([]); await new Promise(r=>setTimeout(r,250));
+  [...document.querySelectorAll("[data-elconfirm] button")].find(b=>/Rezept lesen/.test(b.textContent))?.click();
+  await new Promise(r=>setTimeout(r,250));
+  [...document.querySelectorAll("[data-elconfirm] button")].find(b=>/Fertig/.test(b.textContent))?.click();
+  await new Promise(r=>setTimeout(r,400));
+  const ocrNut=c._readNut(), ocrIng=c.$("rImportText")?.value||"";
+  c._ocrText=oldOcr; c._ws=oldWs; document.querySelectorAll("[data-elov],[data-elconfirm]").forEach(e=>e.remove()); c._view="list"; c._data.recipes=[]; c._renderAll();
+  return { order, serv, nut, sentNut: sent?.nutrition, sentOrder: (sent?.items||[]).map(i=>i.name).join(","), line, ocrNut, ocrIng }; });
+check("🔀 Import-Entwurf behält die Reihenfolge des Rezepts", r.order === "Lasagneplatte,Hackfleisch,Butter,Milch" && r.sentOrder === r.order, JSON.stringify(r));
+check("🍽️ Portionen aus dem Import stehen im Editor", r.serv === "4", JSON.stringify(r));
+check("🧮 Editor zeigt die Nährwerte und speichert die Änderung", /kcal=898/.test(r.nut) && /protein=44.8/.test(r.nut) && r.sentNut?.kcal === 900 && r.sentNut?.fat === 55.2, JSON.stringify(r));
+check("🧮 Rezeptliste zeigt die Nährwerte unter dem Namen", r.line === "🧮 898 kcal · Eiweiß 44,8 g · Fett 55,2 g · KH 46,7 g", r.line);
+check("🧮 Foto-Text: Nährwert-Tabelle wird erkannt und nicht zu Zutaten", r.ocrNut?.kcal === 898 && r.ocrNut?.carbs === 46.7 && !/Brennwert|Eiweiß/.test(r.ocrIng) && /Salz/.test(r.ocrIng), JSON.stringify(r));
+
+// 42) 🧮 Nährwerte zugeklappt mit Kurzfassung, 🤖 KI schätzt, ✂️ Zuschneide-Rahmen passt zur Kartenbreite
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const calls=[]; const oldWs=c._ws; const oldAi={...(c._data.settings||{})};
+  c._data.settings={...(c._data.settings||{}), ai_on:true, ai_agent:"conversation.test", privacy:false};
+  c._ws=async(m)=>{ calls.push(m); return m.type==="einkaufsliste/ai/nutrition"?{nutrition:{kcal:410,protein:18.4}}:{}; };
+  c._openRecipeDraft({ name:"Pfannkuchen", items:[{name:"Mehl",quantity:"250 g"},{name:"Eier",quantity:"3"}], servings:4, nutrition:{kcal:898,protein:44.8} });
+  await new Promise(r=>setTimeout(r,80));
+  const box=c.$("rNutBox"), tog=c.shadowRoot.querySelector('[data-act="nut-toggle"]');
+  const closed=box.hidden, sum=c.$("rNutSum").textContent;
+  tog.click(); await new Promise(r=>setTimeout(r,30));
+  const opened=!box.hidden, aiBtn=!!c.shadowRoot.querySelector('[data-act="nut-ai"]');
+  const oldConfirm=window.elConfirm; 
+  c.shadowRoot.querySelector('[data-act="nut-ai"]').click(); await new Promise(r=>setTimeout(r,150));
+  document.querySelectorAll("[data-elconfirm] button").forEach(b=>{ if(/Ja|OK|Ersetzen|ersetzen/i.test(b.textContent)) b.click(); });
+  [...document.querySelectorAll("[data-elconfirm] button")].pop()?.click();
+  await new Promise(r=>setTimeout(r,200));
+  const sent=calls.find(m=>m.type==="einkaufsliste/ai/nutrition");
+  const kc=c.shadowRoot.querySelector('[data-nut="kcal"]').value;
+  tog.click(); await new Promise(r=>setTimeout(r,30)); const sum2=c.$("rNutSum").textContent;
+  // ✂️ Zuschneiden: Rahmen = angezeigtes Bild (Karte schmaler als das Fenster)
+  const cv0=document.createElement("canvas"); cv0.width=768; cv0.height=432; cv0.getContext("2d").fillRect(0,0,768,432);
+  const blob=await new Promise(ok=>cv0.toBlob(ok,"image/webp",0.8)); const file=new File([blob],"original.webp",{type:"image/webp"});
+  let got=null; c._photoTarget={ ocr:(d)=>{got=d;} };
+  const pr=c._onPhotoFile({target:{files:[file]}}); await new Promise(r=>setTimeout(r,600));
+  const all=(q)=>[...document.querySelectorAll(q),...c.shadowRoot.querySelectorAll(q)];
+  const cv=all("canvas").find(x=>x.nextElementSibling?.firstElementChild); const R=(e)=>e.getBoundingClientRect();
+  const fit=cv ? Math.abs(R(cv).width-R(cv.nextElementSibling).width)<2 && Math.abs(R(cv).height-R(cv.nextElementSibling).height)<2 : false;
+  const oks=all("button").filter(b=>/Übernehmen/.test(b.textContent)); oks[oks.length-1]?.click(); await Promise.race([pr,new Promise(r=>setTimeout(r,800))]);
+  c._ws=oldWs; c._data.settings=oldAi; document.querySelectorAll("[data-elov],[data-elconfirm]").forEach(e=>e.remove()); c._view="list"; c._renderAll();
+  return { closed, sum, opened, aiBtn, sent, kc, sum2, fit, got: !!got }; });
+check("🧮 Nährwerte sind zugeklappt und zeigen die Kurzfassung", r.closed && /898 kcal/.test(r.sum) && r.opened, JSON.stringify(r));
+check("🤖 Nährwerte schätzen: Zutaten mit Menge + Portionen gehen an die KI, Werte landen in den Feldern", r.aiBtn && r.sent?.items?.join("|") === "250 g Mehl|3 Eier" && r.sent?.servings === 4 && r.kc === "410" && /410 kcal/.test(r.sum2), JSON.stringify(r));
+check("✂️ Zuschneide-Rahmen ist genau so groß wie das angezeigte Bild", r.fit && r.got, JSON.stringify(r));
+
+// 43) 📷 EIN Foto-Knopf: kein Text → gleich Rezept-Foto · Text → immer fragen (Gericht oder Rezept lesen) · Vorschlag genauso
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const oldWs=c._ws, oldOcr=c._ocrText, oldPick=c._pickFile; c._ws=async()=>({});
+  const click=(re)=>[...document.querySelectorAll("[data-elconfirm] button")].find(b=>re.test(b.textContent))?.click();
+  const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+  const png="data:image/png;base64,iVBORw0KGgo=";
+  c._pickFile=async()=>{ const t=c._photoTarget; setTimeout(()=>t.ocr(png),10); };
+  c._openRecipe(null); await wait(150);
+  const btns=[...c.shadowRoot.querySelectorAll('[data-act="rphotos-read"],[data-act="rphoto-take"]')].map(b=>b.dataset.act);
+  // a) Kuchenfoto: nur Buchstabensalat → ohne Frage Rezept-Foto, nichts bei den Zutaten
+  c._ocrText=async()=>"De * Fa 7. A er\n2 SD A. ZEN | A\nAI EA\nN ya Pe\nA EN K N } A\n&E Gy N ER WO\nR WO a BROS N za";
+  c._recipeFromPhotos([]); await wait(400);
+  const asked1=!!document.querySelector("[data-elconfirm]"); const photos1=(c._draft.newPhotos||[]).length; const ing1=c.$("rImportText")?.value||"";
+  // b) Foto mit Text → fragen; „Foto vom Gericht“ → Rezept-Foto, keine Zutaten
+  c._ocrText=async()=>"Omas Apfelkuchen\nZutaten\n200 g Mehl\n3 Eier\nZubereitung\nBackofen auf 180 Grad vorheizen und alles backen.";
+  c._recipeFromPhotos([]); await wait(400);
+  const asked2=!!document.querySelector("[data-elconfirm]"); click(/Foto vom Gericht/); await wait(300);
+  const photos2=(c._draft.newPhotos||[]).length; const ing2=c.$("rImportText")?.value||"";
+  // c) Vorschlag: Kuchenfoto → Foto geht mit dem Vorschlag mit
+  c._ocrText=async()=>"A er\nZEN | A";
+  c._proposeRecipe(); await wait(150);
+  const root=document.querySelector("[data-elpage]")||c.shadowRoot; const q=(s)=>root.querySelector(s)||c.shadowRoot.querySelector(s)||document.querySelector(s);
+  const pBtn=[!!q("[data-pocr]"), !!q("[data-pphoto]")];
+  q("[data-pocr]").click(); await wait(400);
+  const asked3=!!document.querySelector("[data-elconfirm]"); const hint=q("[data-pphint]")?.textContent, has=!!c._propPhoto;
+  c._propPhoto=null; let n=0; while(c._page && n++<6) c._pageBack(); document.querySelectorAll("[data-elov],[data-elconfirm]").forEach(e=>e.remove());
+  c._ws=oldWs; c._ocrText=oldOcr; c._pickFile=oldPick; c._view="list"; c._renderAll();
+  return { btns, asked1, photos1, ing1, asked2, photos2, ing2, pBtn, asked3, hint, has }; });
+check("📷 Editor hat nur noch EINEN Foto-Knopf", r.btns.length === 1 && r.btns[0] === "rphotos-read", JSON.stringify(r));
+check("📷 Kuchenfoto ohne lesbaren Text: keine Frage, Rezept-Foto, kein Buchstabensalat bei den Zutaten", !r.asked1 && r.photos1 === 1 && r.ing1 === "", JSON.stringify(r));
+check("📷 Foto mit Text: immer fragen; „Foto vom Gericht“ → Rezept-Foto, Zutaten bleiben leer", r.asked2 && r.photos2 === 2 && r.ing2 === "", JSON.stringify(r));
+check("📷 Vorschlag: ein Foto-Knopf, Kuchenfoto geht ohne Frage mit dem Vorschlag mit", r.pBtn[0] && !r.pBtn[1] && !r.asked3 && r.has && /Foto ist dabei/.test(r.hint || ""), JSON.stringify(r));
+
+// 44) 🖨️ „Drucken & Teilen“ unter dem Rezept · Blatt mit Foto, Zeiten, Nährwerten, Quelle, Zutaten in 2 Spalten · passt auf EINE A4-Seite
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+  const cv=document.createElement("canvas"); cv.width=400; cv.height=300; cv.getContext("2d").fillRect(0,0,400,300); const photo=cv.toDataURL("image/jpeg",.8);
+  const oldPD=c._photoData, oldHP=c._hasPhoto; c._photoData=async()=>photo; c._hasPhoto=()=>true;
+  const names=["Weizenmehl","Zucker","Hefe","Milch","Zwetschgen","Vanillezucker","Ei","Salz","Butter","Zitronenabrieb","Zimt","Lasagneplatten"];
+  const mk=(n)=>({ id:"rp1", name:"Zwetschgendatschi", items:names.map((x,i)=>({name:x,quantity:(i+1)*10+" g"})), servings:20, servings_unit:"persons", minutes:160, source:"https://www.rewe.de/rezepte/zwetschgendatschi/", nutrition:{kcal:266,protein:4.2}, heat:[],
+    steps:Array.from({length:n},(_,i)=>`Schritt ${i+1}: Zwetschgen waschen, halbieren, entkernen und vierteln. Den Teig mit dem Knethaken solange kneten, bis er Blasen wirft und danach zugedeckt gehen lassen, bis sich sein Volumen verdoppelt hat.`).join("\n") });
+  const out={}; c._data.recipes=[mk(6)]; c._view="recipes"; c._renderAll(); await wait(120);
+  const btn=c.shadowRoot.querySelector('.rtools [data-act="recipe-share"]'); const first=c.shadowRoot.querySelector(".rtools .btn"); out.firstAct=first?.dataset.act;
+  out.icon=btn?.querySelector("ha-icon")?.getAttribute("icon"); out.title=btn?.title;
+  for (const n of [6, 22]) {
+    c._printRecipePage(mk(n)); await wait(500);
+    const sheet=document.querySelector(".prsheet")||c.shadowRoot.querySelector(".prsheet");
+    if (n === 6) { out.img=!!sheet.querySelector(".rzimg"); out.chips=sheet.querySelectorAll(".rzchip").length; out.cols=getComputedStyle(sheet.querySelector(".rzcols")).columnCount; out.nut=/266 kcal/.test(sheet.textContent); out.src=/rewe\.de/.test(sheet.textContent); }
+    (document.querySelector("[data-prgo]")||c.shadowRoot.querySelector("[data-prgo]")).click(); await wait(1200);
+    const doc=document.querySelector("iframe")?.contentDocument; const h=doc?.body.getBoundingClientRect().height||0;
+    out["h"+n]=Math.round(h); out["z"+n]=doc?.body.style.zoom||"";
+    document.querySelectorAll("iframe").forEach(e=>e.remove()); let k=0; while(c._page && k++<6) c._pageBack();
+  }
+  out.avail=Math.round(263*96/25.4);
+  c._photoData=oldPD; c._hasPhoto=oldHP; c._data.recipes=[]; document.querySelectorAll("[data-elov],[data-elconfirm]").forEach(e=>e.remove()); c._view="list"; c._renderAll();
+  return out; });
+check("🖨️ Unter dem Rezept: erstes Symbol „Ansehen“, der Teilen-Knopf heißt „Drucken & Teilen“ mit Symbol Blatt mit Pfeil", r.firstAct === "recipe-view" && r.icon === "mdi:file-send-outline" && /Drucken/.test(r.title || ""), JSON.stringify(r));
+check("🖨️ Blatt: Foto, Dauer/Portionen, Nährwerte, Quelle und Zutaten in zwei Spalten", r.img && r.chips === 2 && r.nut && r.src && r.cols === "2", JSON.stringify(r));
+check("🖨️ Kurzes Rezept bleibt in Originalgröße, langes wird passend verkleinert und passt auf EINE Seite", r.z6 === "" && r.h6 <= r.avail && Number(r.z22) < 1 && r.h22 <= r.avail, JSON.stringify(r));
+
+// 45) 🧱 Zweispaltige Rezeptkarte (TikTok): Spalten getrennt gelesen, Überschrift mit Symbol, Kästen enden an der nächsten Überschrift, Thermomix nur auf Wunsch
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const oldWs=c._ws, oldOcr=c._ocrText, oldPick=c._pickFile; c._ws=async()=>({});
+  const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+  const click=(re)=>[...document.querySelectorAll("[data-elconfirm] button")].find(b=>re.test(b.textContent))?.click();
+  const png="data:image/png;base64,iVBORw0KGgo=";
+  c._pickFile=async()=>{ const t=c._photoTarget; setTimeout(()=>t.ocr(png),10); };
+  const TXT="A\nVE\nvn FE MONTAG - KW 44 DOM\nCremige Brokkoli-Schinken-Nudeln\na {1 4 Personen - ca. 25 Minuten © DZ\n"
+   +"{3 ZUTATEN E\n400 g kurze Nudeln + 500 g Brokkoli\n200 g Kochschinken + 1 Zwiebel\n10 g Öl - 200 g Frischkäse natur $\n250 mi Milch + 100 ml Nudelwasser\nSalz, Pfeffer, Muskat\n©) THERMOMIX + TM6\n[1] Nudeln und Brokkoli wie oben im Topf garen.\n[2] Zwiebel halbiert 5 Sek./Stufe 5 zerkleinern,\nherunterschieben. Öl zugeben: 3 Min./120 °C/\nStufe 1.\n© Milch, Frischkäse und Gewürze: 5 Min./90 °C/\nStufe 2. Schinken gewürfelt: 2 Min./90 °C/\nLinkslauf/Stufe 1.\n[4] Sauce in einer großen Schüssel mit Nudeln,\nBrokkoli und Nudelwasser mischen.\n"
+   +"{ ZUBEREITUNG - NORMAL\n\n(1) Nudeln nach Packung garen. Brokkoliröschen\ndie letzten 5-6 Min. mitkochen. 100 ml\nNudelwasser auffangen.\n\n@ Zwiebel fein würfeln, in Öl glasig dünsten.\nMilch und Frischkäse einrühren, 3-4 Min.\nsanft erhitzen.\n\n® Gewürfeliten Schinken, Nudeln und Brokkoli\nunterheben. Mit Nudelwasser cremig rühren\nund würzen.\n\n1] NÄHRWERTE PRO PORTION - CA.\n650 kcal + 34 g Eiweiß + 84 g Kohlenhydrate + 19 g Fett\nT—\n\nTI AUFBEWAHRUNG & MEAL PREP\n\nZügig abkühlen und kalt stellen. Im Kühlschrank\nbis 2 Tage. Einfrieren möglich, Sauce kann sich\netwas trennen. Mit etwas Milch in Topf oder\nMikrowelle gründlich erhitzen.\n\nTipp: Brokkoli am Vorabend schneiden.\n";
+  c._ocrText=async()=>TXT;
+  const run=async(tm)=>{
+    c._openRecipe(null); await wait(150);
+    c._recipeFromPhotos([]); await wait(500);
+    click(/Rezept lesen/); await wait(500);   // Text drauf → „Rezept lesen“
+    click(/Fertig/); await wait(500);          // keine weitere Seite
+    const asked=!!document.querySelector("[data-elconfirm]");
+    click(tm ? /Ja, dazu/ : /^Nein/); await wait(700);
+    const name=c.$("rName")?.value, ing=c.$("rImportText")?.value||"", steps=(c._draft.stepRows||[]).map(r=>r.t), nut=c._readNut?.();
+    document.querySelectorAll("[data-elov],[data-elconfirm]").forEach(e=>e.remove());
+    return { asked, name, ing, steps, kcal: nut?.kcal, protein: nut?.protein, carbs: nut?.carbs, fat: nut?.fat };
+  };
+  const no=await run(false); c._view="list"; c._renderAll();
+  const yes=await run(true);
+  // 🧱 Spalten-Erkennung selbst: zweispaltig → Trennlinie, einspaltig → keine
+  const mk=(n,cols)=>Array.from({length:n},(_,i)=>({bbox:{x0:40,y0:i*30,x1:1000,y1:i*30+24},words:cols?[{text:"Nudeln",bbox:{x0:40,x1:200,y0:i*30,y1:i*30+24},confidence:90},{text:"kochen",bbox:{x0:210,x1:420,y0:i*30,y1:i*30+24},confidence:90},{text:"Zwiebel",bbox:{x0:560,x1:700,y0:i*30,y1:i*30+24},confidence:90},{text:"würfeln",bbox:{x0:710,x1:980,y0:i*30,y1:i*30+24},confidence:90}]:[{text:"Ein",bbox:{x0:40,x1:100,y0:i*30,y1:i*30+24},confidence:90},{text:"langer",bbox:{x0:110,x1:300,y0:i*30,y1:i*30+24},confidence:90},{text:"Satz",bbox:{x0:310,x1:520,y0:i*30,y1:i*30+24},confidence:90},{text:"mitten",bbox:{x0:530,x1:700,y0:i*30,y1:i*30+24},confidence:90},{text:"durch",bbox:{x0:710,x1:980,y0:i*30,y1:i*30+24},confidence:90}]}));
+  const two=elOcrSplit(mk(10,true),1080), one=elOcrSplit(mk(10,false),1080);
+  c._data.recipes=[]; c._ws=oldWs; c._ocrText=oldOcr; c._pickFile=oldPick; document.querySelectorAll("[data-elov],[data-elconfirm]").forEach(e=>e.remove()); c._view="list"; c._renderAll();
+  return { no, yes, two, one }; });
+check("🧱 Zweispaltige Karte: Name und Zutaten sauber (zwei Zutaten pro Zeile getrennt, kein Thermomix/Nährwerte/Aufbewahrung darin)", r.no.name === "Cremige Brokkoli-Schinken-Nudeln" && /^400 g kurze Nudeln\n500 g Brokkoli\n200 g Kochschinken\n1 Zwiebel\n10 g Öl\n200 g Frischkäse natur\n250 ml Milch\n100 ml Nudelwasser\nSalz, Pfeffer, Muskat$/.test(r.no.ing||"") , JSON.stringify(r.no));
+check("🧱 Schritte: 3 echte Schritte (Zeilen gehören zusammen), Nährwerte aus EINER Zeile, Thermomix auf Nachfrage mit „Nein“ nicht dabei", r.no.asked && r.no.steps.length === 3 && /^Nudeln nach Packung garen\. Brokkoliröschen die letzten 5-6 Min\. mitkochen\. 100 ml Nudelwasser auffangen\.$/.test(r.no.steps[0]) && r.no.kcal === 650 && r.no.protein === 34 && r.no.carbs === 84 && r.no.fat === 19, JSON.stringify(r.no));
+check("🍲 Thermomix mit „Ja, dazu“: Block hängt hinten an den Schritten", r.yes.steps.length === 7 && /^🍲 Nudeln und Brokkoli/.test(r.yes.steps[3]) && /Stufe 1\.$/.test(r.yes.steps[4]), JSON.stringify(r.yes));
+check("🧱 Spalten-Erkennung: zweispaltig → Trennlinie in der Mitte, Fließtext → keine", r.two && r.two.x > 450 && r.two.x < 560 && r.one === null, JSON.stringify({two:r.two, one:r.one}));
+
+// 46) 🧱 Ganzer TikTok-Screenshot: App-Leiste wird nicht zum Namen, Spalten (Marke) → Zutaten links, Schritte rechts, Thermomix-Block extra, Nährwerte aus einer Zeile
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const oldWs=c._ws, oldOcr=c._ocrText, oldPick=c._pickFile; c._ws=async()=>({});
+  const wait=(ms)=>new Promise(r=>setTimeout(r,ms));
+  const click=(re)=>[...document.querySelectorAll("[data-elconfirm] button")].find(b=>re.test(b.textContent))?.click();
+  const png="data:image/png;base64,iVBORw0KGgo=";
+  c._pickFile=async()=>{ const t=c._photoTarget; setTimeout(()=>t.ocr(png),10); };
+  const M="‖SPALTE‖";
+  const TXT="LIVE\nSteinfurt Gefolgt Shop Für dich Q\n\nCremige BroKKOl Schinken-Nudeln\n\nI 4 Personen -\n\nca. 25 Minuten ©\n\n"
+   +"400 g kurze Nudeln +\n200 g Kochschinken - 1 Zwiebel\n10 g Öl - 200 g Frischkäse natur\n250 ml Milch +\n\n500 g Brokkoli\n\n%\n\n100 ml Nudelwasser /\n\nSalz, Pfeffer, Muskat\n\n"
+   +"Nudeln und Brokkoli wie oben im Topf garen.\n\nZwiebel halbiert 5 Sek./Stufe 5 zerkleinern,\nherunterschieben. Öl zugeben: 3 Min./120 °C/\nStufe 1.\n\nW Sauce in einer großen Schüssel mit Nudeln,\nBrokkoli und Nudelwasser mischen.\n\nx\n\n"+M+"\n\n"
+   +"3 Nudeln nach Packung garen. Brokkoliröschen\n=” die letzten 5-6 Min. mitkochen. 100 ml\nNudelwasser auffangen.\n\nZwiebel fein würfeln, in Öl glasig dünsten.\nMilch und Frischkäse einrühren, 3-4 Min.\nsanft erhitzen.\n\nGewürfeliten Schinken, Nudeln und Brokkoli\nunterheben. Mit Nudelwasser cremig rühren\nund würzen.\n\n650 kcal - 34 g Eiweiß - 84 g Kohlenhydrate + 19 g Fett\n\nZügig abkühlen und kalt stellen. Im Kühlschrank\nbis 2 Tage. Einfrieren möglich.\n\nTipp: Brokkoli am Vorabend schneiden.\n\ndanisfamilienkueche\n\nHome Freund*innen Posteingang Profil\n";
+  c._ocrText=async()=>TXT;
+  c._openRecipe(null); await wait(150);
+  c._recipeFromPhotos([]); await wait(500);
+  click(/Rezept lesen/); await wait(500); click(/Fertig/); await wait(500);
+  const asked=!!document.querySelector("[data-elconfirm]"); click(/^Nein/); await wait(700);
+  const name=c.$("rName")?.value, ing=c.$("rImportText")?.value||"", steps=(c._draft.stepRows||[]).map(r=>r.t), nut=c._readNut?.();
+  document.querySelectorAll("[data-elov],[data-elconfirm]").forEach(e=>e.remove()); c._view="list"; c._renderAll();
+  // 🧱 Absätze nach Spalten ordnen (Tesseract-Absätze mit Position): links 3, rechts 3, ein Titel über alles
+  const mk=(t,x0,x1,y0)=>({text:t,bbox:{x0,x1,y0,y1:y0+60}});
+  const arranged=elOcrArrange([mk("Titel quer",30,1000,10),mk("A links",40,400,100),mk("B links",40,420,200),mk("C links",40,380,300),mk("D rechts",560,1000,100),mk("E rechts",560,990,200),mk("F rechts",560,980,300)]);
+  const single=elOcrArrange([mk("A",40,900,100),mk("B",40,900,200),mk("C",40,900,300),mk("D",40,900,400)]);
+  c._data.recipes=[]; c._ws=oldWs; c._ocrText=oldOcr; c._pickFile=oldPick; return { asked, name, ing, steps, kcal: nut?.kcal, protein: nut?.protein, arranged, single }; });
+check("🧱 Ganzer Screenshot: App-Leiste wird nicht der Name, Zutaten links sauber, Kopf-Reste (4 Personen, 25 Minuten) weg", r.name === "Cremige BroKKOl Schinken-Nudeln" && r.ing === "400 g kurze Nudeln\n200 g Kochschinken\n1 Zwiebel\n10 g Öl\n200 g Frischkäse natur\n250 ml Milch\n500 g Brokkoli\n100 ml Nudelwasser\nSalz, Pfeffer, Muskat", JSON.stringify(r));
+check("🧱 Schritte nur rechts (3), ohne Thermomix, Aufbewahrung, Tipp, Benutzername und App-Menü; Nährwerte da", r.asked && r.steps.length === 3 && /^Nudeln nach Packung garen\. Brokkoliröschen die letzten/.test(r.steps[0]) && !/=”/.test(r.steps[0]) && r.kcal === 650 && r.protein === 34, JSON.stringify(r));
+check("🧱 Absätze nach Spalten geordnet (Titel, links, Marke, rechts), einspaltig bleibt wie es ist", r.arranged === "Titel quer\n\nA links\n\nB links\n\nC links\n\n‖SPALTE‖\n\nD rechts\n\nE rechts\n\nF rechts" && !r.single.includes("SPALTE"), JSON.stringify({a:r.arranged, s:r.single}));
+
+// 💶 Angebotspreis am 🏷️: Tooltip mit günstigstem Angebot, Preis daneben nur mit Schalter (Standard aus)
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const root=c.shadowRoot; const d=c._data;
+  const it=d.items.find((i)=>!i.checked && !i.offer); const keepOff=d.offers; const vp=d.settings.view_prefs||{}; const keepVp={...vp};
+  const to=new Date(Date.now()+2*864e5).toISOString();
+  d.offers={ [it.name.toLowerCase()]: [{p:1.49, r:"Aldi", to}, {p:0.99, op:1.99, r:"Lidl", to}, {p:0.5, r:"Netto", alt:"Ähnlich", to}] };
+  c._tab="all"; c._view="list"; c._viewKey=null; c._renderAll(); await new Promise(r=>setTimeout(r,40));
+  const btn=()=>root.querySelector('.item[data-id="'+it.id+'"] .offtag');
+  const off={ title:btn()?.getAttribute("title")||"", price:!!btn()?.querySelector(".offp") };
+  const tmp=document.createElement("div"); tmp.innerHTML=c._viewHtml(); const sw=tmp.querySelector('[data-key="offer_price"]');
+  d.settings.view_prefs={ ...vp, _all:{ ...(vp._all||{}), offer_price:true } }; c._viewKey=null; c._renderList(); await new Promise(r=>setTimeout(r,30));
+  const on={ txt:btn()?.querySelector(".offp")?.textContent||"" };
+  d.settings.view_prefs=keepVp; d.offers=keepOff; c._viewKey=null; c._renderAll();
+  return { off, on, sw:{ there:!!sw, pressed:sw?.getAttribute("aria-pressed") }, info:c._viewInfo() }; });
+check("💶 Tooltip am 🏷️: günstigstes echtes Angebot mit statt, bis und +2 weitere", /^Lidl: 0,99\s€ \(statt 1,99\s€\) · bis .+ · \+2 weitere – Im Angebot/.test(r.off.title) && !r.off.price, JSON.stringify(r));
+check("💶 Schalter „Angebotspreis neben 🏷️“ Standard aus, an = „ab 0,99 €“ daneben", r.sw.there && r.sw.pressed === "false" && /^ab 0,99\s€$/.test(r.on.txt) && !/ausgeblendet/.test(r.info), JSON.stringify(r));
+
+// 🔎 Foto suchen (ohne Barcode): Auswahl nur bei Produkten, Fenster mit Treffern, antippen = übernehmen
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const keepWs=c._ws; const sent=[];
+  const px="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><rect width='40' height='40' fill='%23f9a825'/></svg>";
+  c._ws=async(m)=>{ sent.push(m); if(m.type==="einkaufsliste/photo/search") return {reached:true, results:[{url:"https://images.openfoodfacts.org/a.jpg",thumb:px,name:"Laugenbrezel",brand:"Bäcker"},{url:"https://images.openfoodfacts.org/b.jpg",thumb:px,name:"Brezel",brand:""}]}; return {count:1}; };
+  const able={ prod:c._photoSearchable({name:"Brezel"}), recipe:c._photoSearchable({name:"rezept#r1"}), bon:c._photoSearchable({name:"bon#1"}), ocr:c._photoSearchable({name:"x", ocr:()=>{}}) };
+  c._searchPhoto({ name:"Brezel|Bäcker", onDone:()=>{ sent.push({done:true}); } }); await new Promise(r=>setTimeout(r,120));
+  const root=c.shadowRoot; const host=root.querySelector(".pagehost")||document;
+  const q=host.querySelector("[data-q]")?.value; const tiles=[...host.querySelectorAll("[data-res] button")];
+  const cap=tiles.map(t=>t.textContent.trim());
+  tiles[0]?.click(); await new Promise(r=>setTimeout(r,80));
+  c._ws=keepWs;
+  return { able, q, cap, sent:sent.map(m=>m.type||(m.done?"done":"")), take:sent.find(m=>m.type==="einkaufsliste/photo/take") }; });
+check("🔎 Foto suchen nur bei Produkten (nicht Rezept, Bon, Texterkennung)", r.able.prod && !r.able.recipe && !r.able.bon && !r.able.ocr, JSON.stringify(r.able));
+check("🔎 Suchfeld mit Name + Notiz, 2 Treffer mit Beschriftung", r.q === "Brezel Bäcker" && r.cap.length === 2 && r.cap[0] === "Laugenbrezel · Bäcker", JSON.stringify(r));
+check("🔎 Antippen schickt photo/take mit Adresse und schließt", r.take?.url === "https://images.openfoodfacts.org/a.jpg" && r.take?.name === "Brezel|Bäcker" && r.sent.includes("done"), JSON.stringify(r));
+await back();
+
+// 🗑️ Löschen im lange-drücken-Menü: springt zu „Einkaufsliste Produkte löschen“ mit Namen in der Suche
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const d=c._data; const it=d.items.find(i=>!i.checked);
+  const keepPin=d.settings.pin; d.settings.pin=false;
+  c._view="list"; c._tab="all"; c._menuId=it.id; c._renderAll(); await new Promise(r=>setTimeout(r,40));
+  const btn=c.shadowRoot.querySelector('.menurow [data-act="menu-del"]'); const txt=btn?.textContent.trim();
+  btn?.click(); await new Promise(r=>setTimeout(r,150));
+  const res={ txt, view:c._view, sec:c._setSec, tab:c._prodTab, search:c.shadowRoot.querySelector("#delSearch")?.value, name:it.name };
+  d.settings.pin=keepPin; c._view="list"; c._prodTab=null; c._delFilter=""; c._renderAll();
+  return res; });
+check("🗑️ Menü hat „Löschen“ und springt zu „Einkaufsliste Produkte löschen“ mit Suche", r.txt === "Löschen" && r.view === "settings" && r.sec === "products" && r.tab === "delete" && r.search === r.name, JSON.stringify(r));
+
 check("keine JavaScript-Fehler", errs.length === 0, errs.join(" | "));
 await b.close(); srv.close();
 if (fails) { console.log(`\n${fails} Prüfung(en) fehlgeschlagen`); process.exit(1); }

@@ -13,10 +13,18 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-from .barcode import async_auto_photo, async_lookup, async_product_info, async_refresh_photo
-from .ai_cook import async_cook
+from .barcode import (
+    async_auto_photo,
+    async_lookup,
+    async_product_info,
+    async_refresh_photo,
+    async_search_photos,
+    async_take_search_photo,
+)
+from .ai_cook import PHOTO_MAX_BYTES, async_cook, async_nutrition, async_photo_recipe
 from .grocy_import import async_fetch, clean_base, import_rows, parse_catalog_text
-from .recipe_import import async_import
+from .recipe_import import OwnFormat, async_import, parse_recipe_file, prepare_file_recipes
+from .recipe_heat import guess_heat
 from . import mealie_import
 from .const import DOMAIN, PUSH_DELAY, SIGNAL_UPDATED
 from .mail_import import mail_sources
@@ -71,6 +79,8 @@ def async_register(hass: HomeAssistant) -> None:
         ws_item_out,
         ws_item_gone,
         ws_recipe_import_file,
+        ws_recipe_parse_file,
+        ws_recipe_heat_guess,
         ws_import_text,
         ws_import_todo_lists,
         ws_import_todo,
@@ -96,7 +106,10 @@ def async_register(hass: HomeAssistant) -> None:
         ws_note_templates,
         ws_ai_agent,
         ws_ai_prefs,
+        ws_recipe_basics,
         ws_ai_cook,
+        ws_ai_nutrition,
+        ws_ai_photo,
         ws_grocy_set,
         ws_grocy_clear,
         ws_grocy_run,
@@ -143,6 +156,8 @@ def async_register(hass: HomeAssistant) -> None:
         ws_recalls_dismiss,
         ws_product_add,
         ws_product_refresh,
+        ws_photo_search,
+        ws_photo_take,
         ws_photos_refresh_plan,
         ws_stats,
         ws_errors_get,
@@ -498,6 +513,7 @@ RECIPE_ITEM = vol.Schema(
         vol.Optional("category_id"): OPT_STR,
         vol.Optional("barcode"): OPT_STR,
         vol.Optional("basic"): bool,
+        vol.Optional("no_basic"): bool,  # 🧂 trotz Grundvorrat-Liste hier abgewählt
         vol.Optional("own_note"): OPT_STR,  # ✏️ Eigene Notiz (beim Produkt)
     }
 )
@@ -515,6 +531,7 @@ RECIPE_ITEM = vol.Schema(
         vol.Optional("servings_unit"): vol.In(["persons", "trays", "forms"]),
         vol.Optional("minutes"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=0, max=1440))),
         vol.Optional("step_items"): vol.Any(None, [vol.Any(None, [str])]),
+        vol.Optional("nutrition"): vol.Any(None, dict),
         vol.Optional("group"): vol.Any(None, str),
         vol.Optional("ai"): bool,
         vol.Optional("source"): OPT_STR,
@@ -522,7 +539,7 @@ RECIPE_ITEM = vol.Schema(
 )
 @callback
 def ws_recipe_add(hass, connection, msg):
-    _run(hass, connection, msg, lambda m: m.add_recipe(msg["name"], msg["items"], msg.get("icon"), msg.get("steps"), msg.get("heat"), msg.get("servings"), msg.get("servings_unit"), msg.get("group"), bool(msg.get("ai")), msg.get("source"), msg.get("minutes"), msg.get("step_items")))
+    _run(hass, connection, msg, lambda m: m.add_recipe(msg["name"], msg["items"], msg.get("icon"), msg.get("steps"), msg.get("heat"), msg.get("servings"), msg.get("servings_unit"), msg.get("group"), bool(msg.get("ai")), msg.get("source"), msg.get("minutes"), msg.get("step_items"), msg.get("nutrition")))
 
 
 @websocket_api.websocket_command(
@@ -576,6 +593,7 @@ async def ws_proposal_reject(hass, connection, msg):
         vol.Optional("servings_unit"): vol.In(["persons", "trays", "forms"]),
         vol.Optional("minutes"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=0, max=1440))),
         vol.Optional("step_items"): vol.Any(None, [vol.Any(None, [str])]),
+        vol.Optional("nutrition"): vol.Any(None, dict),
         vol.Optional("group"): vol.Any(None, str),
         vol.Optional("step_map"): [vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=0, max=999)))],
         vol.Optional("plan"): vol.In(["", "wish", "week"]),
@@ -585,7 +603,7 @@ async def ws_proposal_reject(hass, connection, msg):
 )
 @callback
 def ws_recipe_update(hass, connection, msg):
-    fields = _pick(msg, "name", "icon", "items", "steps", "heat", "servings", "servings_unit", "group", "step_map", "plan", "source", "cook_note", "minutes", "step_items")
+    fields = _pick(msg, "name", "icon", "items", "steps", "heat", "servings", "servings_unit", "group", "step_map", "plan", "source", "cook_note", "minutes", "step_items", "nutrition")
     _run(hass, connection, msg, lambda m: m.update_recipe(msg["recipe_id"], **fields))
 
 
@@ -760,6 +778,42 @@ def ws_load(hass, connection, msg):
 async def ws_factory_reset(hass, connection, msg):
     # 💣 Werkseinstellungen: alles zurück auf Anfang (nur Admins; nur die PIN bleibt)
     await _run_async(hass, connection, msg, lambda m: m.async_factory_reset())
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/recipe/parse_file", vol.Required("data"): str,
+     vol.Optional("filename"): OPT_STR}
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_recipe_parse_file(hass, connection, msg):
+    """🍲 Mealie-.zip/.json oder schema.org lesen – nichts wird gespeichert, der Editor zeigt es zum Prüfen."""
+    import base64
+    import binascii
+
+    try:
+        raw = base64.b64decode(msg["data"].split(",", 1)[-1], validate=False)
+    except (binascii.Error, ValueError):
+        connection.send_error(msg["id"], "invalid", "Die Datei konnte nicht gelesen werden.")
+        return
+
+    async def go(m):
+        try:  # 📦 Entpacken im Hintergrund (blockiert Home Assistant nicht), Zuordnen danach
+            recipes = await hass.async_add_executor_job(parse_recipe_file, raw, msg.get("filename"))
+        except OwnFormat:
+            return {"own": True}
+        return {"recipes": prepare_file_recipes(m, recipes)}
+
+    await _run_async(hass, connection, msg, go)
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/recipe/heat_guess", vol.Required("steps"): str}
+)
+@callback
+def ws_recipe_heat_guess(hass, connection, msg):
+    """🔥 Backofen & Airfryer aus Schritten herauslesen (z. B. nach „Rezept aus Fotos“)."""
+    connection.send_result(msg["id"], {"heat": guess_heat(msg["steps"][:20000])})
 
 
 @websocket_api.websocket_command(
@@ -1282,6 +1336,25 @@ async def ws_product_refresh(hass, connection, msg):
     await _run_async(hass, connection, msg, lambda m: async_refresh_photo(hass, m, msg["key"], bool(msg.get("only_missing")), bool(msg.get("replace"))))
 
 
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/photo/search", vol.Required("query"): vol.All(str, vol.Length(max=200))}
+)
+@websocket_api.async_response
+async def ws_photo_search(hass, connection, msg):
+    """🔎 Produktfotos per Name in Open Food Facts & Co. suchen (bis zu 4 zur Auswahl)."""
+    await _run_async(hass, connection, msg, lambda m: async_search_photos(hass, m, msg["query"]))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/photo/take", vol.Required("name"): str,
+     vol.Required("url"): vol.All(str, vol.Length(max=1000))}
+)
+@websocket_api.async_response
+async def ws_photo_take(hass, connection, msg):
+    """🔎 Ausgesuchtes Foto aus der Suche zum Produkt speichern (kommt dazu, eigene bleiben)."""
+    await _run_async(hass, connection, msg, lambda m: async_take_search_photo(hass, m, msg["name"], msg["url"]))
+
+
 @websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/photos/refresh_plan"})
 @websocket_api.async_response
 async def ws_photos_refresh_plan(hass, connection, msg):
@@ -1784,6 +1857,19 @@ def ws_ai_agent(hass, connection, msg):
 
 @websocket_api.websocket_command(
     {
+        vol.Required("type"): "einkaufsliste/recipe/basics",
+        vol.Optional("on"): bool,
+        vol.Optional("names"): vol.All(str, vol.Length(max=3000)),
+    }
+)
+@callback
+def ws_recipe_basics(hass, connection, msg):
+    """🧂 Zentrale Grundvorrat-Liste speichern (gilt für alle Rezepte)."""
+    _run(hass, connection, msg, lambda m: m.set_basics(msg.get("on"), msg.get("names")))
+
+
+@websocket_api.websocket_command(
+    {
         vol.Required("type"): "einkaufsliste/ai/prefs",
         vol.Optional("pantry"): vol.All(str, vol.Length(max=1200)),
         vol.Optional("avoid"): vol.All(str, vol.Length(max=1200)),
@@ -1818,3 +1904,55 @@ async def ws_ai_cook(hass, connection, msg):
         connection.send_error(msg["id"], "invalid", str(err))
         return
     connection.send_result(msg["id"], {"ideas": ideas})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "einkaufsliste/ai/nutrition",
+        vol.Required("items"): [vol.All(str, vol.Length(max=160))],
+        vol.Optional("servings"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=1, max=99))),
+    }
+)
+@websocket_api.async_response
+async def ws_ai_nutrition(hass, connection, msg):
+    """🤖🧮 Rezept-Editor: Nährwerte pro Portion von der KI schätzen lassen."""
+    manager = _manager(hass)
+    if manager is None:
+        connection.send_error(msg["id"], "not_ready", "Die Einkaufsliste ist noch nicht bereit.")
+        return
+    try:
+        nutrition = await async_nutrition(hass, manager, msg["items"], msg.get("servings"))
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    connection.send_result(msg["id"], {"nutrition": nutrition})
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "einkaufsliste/ai/photo",
+        vol.Required("images"): vol.All([vol.All(str, vol.Length(max=9_000_000))], vol.Length(min=1, max=6)),
+    }
+)
+@websocket_api.async_response
+async def ws_ai_photo(hass, connection, msg):
+    """📷🤖 Rezeptfoto(s) vom KI-Assistenten lesen lassen (Name, Zutaten, Schritte)."""
+    manager = _manager(hass)
+    if manager is None:
+        connection.send_error(msg["id"], "not_ready", "Die Einkaufsliste ist noch nicht bereit.")
+        return
+    import base64
+    import binascii
+
+    raws: list[bytes] = []
+    try:
+        for img in msg["images"]:
+            raw = base64.b64decode(img.split(",", 1)[-1], validate=False)
+            if not raw.startswith(b"\xff\xd8") or len(raw) > PHOTO_MAX_BYTES:
+                raise ValueError("Das Foto ist kein gültiges (oder zu großes) JPEG-Bild.")
+            raws.append(raw)
+        recipe = await async_photo_recipe(hass, manager, raws)
+    except (ValueError, binascii.Error) as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    connection.send_result(msg["id"], {"recipe": recipe})
