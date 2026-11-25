@@ -2,9 +2,9 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.76.28-mealie.1";
+const EL_VERSION = "2.76.29-mealie.1";
 // 🆕 Was ist neu (deutsch, englisch) – NUR echte neue Funktionen; bei reinen Fehlerbehebungen bleibt es unverändert (EL_NEWS_VERSION nicht anfassen)
-const EL_NEWS_VERSION = "2.76.28"; // Version der letzten ECHTEN Neuerung – kleine Fehlerbehebungen kommen nicht hierher (stehen in den GitHub-Release-Hinweisen)
+const EL_NEWS_VERSION = "2.76.29"; // Version der letzten ECHTEN Neuerung – kleine Fehlerbehebungen kommen nicht hierher (stehen in den GitHub-Release-Hinweisen)
 // 📖 Die Anleitung (neu): nur, was jeder beim Benutzen braucht. Einstellungen (⚙️) stehen in EL_HELP weiter unten.
 // Jeder Eintrag: icon, Farbe, [Titel de, en], Untertitel [de, en], Punkte [[de…], [en…]]
 const EL_GUIDE = [
@@ -93,7 +93,7 @@ const EL_GUIDE = [
       "<b>🕒 Öffnungszeiten:</b> in ⚙️ → Geschäfte → Geschäft. Hat es zu, wird sein Reiter grau. Den Namen oben gedrückt halten zeigt die Zeiten. Mehrere Zeitfenster am Tag, „📋 auf Tage…“ und „🎌 An Feiertagen zu“ gehen auch.",
       "<b>🌐 Aus dem Netz:</b> „Zeiten aus OpenStreetMap“ holt Zeiten, Adresse und Telefon auf Knopfdruck (von Freiwilligen eingetragen, bitte kurz prüfen).",
       "<b>🏬 Filialen</b> (z. B. 3× K&K): ⚙️ → Geschäfte → „🏬 Filialen ändern“. Pro Filiale <b>✏️ Bearbeiten</b>: Name, Adresse, Telefon, Tipps und eigene Zeiten. Erst 💾 Speichern schreibt alles weg.",
-      "<b>📤 Drucken & Teilen</b> (unter der Liste): als Zettel drucken, als <b>PDF</b> speichern oder teilen (auf dem iPhone über „Teilen“) oder als <b>QR-Code</b> zum Scannen mit einem anderen Handy.",
+      "<b>📤 Drucken & Teilen</b> (unter der Liste): als Zettel drucken, als <b>PDF</b> speichern oder teilen (auf dem iPhone über „Teilen“) oder als <b>QR-Code</b> zum Scannen mit einem anderen Handy. Admins finden dort auch den <b>🎫 Gast-Link</b> – nur nach Eingabe der Einstellungen-PIN.",
       "<b>🗞️ Prospekt-Link:</b> Unter ⚙️ → Geschäfte → Geschäft kannst du die Adresse eines Prospekts eintragen (z. B. von Bofrost oder Aldi). Den Namen oben gedrückt halten, dann „🗞️ Prospekt öffnen“. Es wird nur die Adresse gespeichert, nichts selbst abgerufen.",
       "<b>💡 Bildschirm immer an:</b> Im Laden-Modus erscheint ein Glühbirnen-Icon. Antippen = der Bildschirm bleibt an. In der HA-App klappt das nur mit der App-Einstellung „Bildschirm anlassen“.",
       "<b>Automatisch (Option):</b> Ist „Laden-Modus automatisch“ in ⚙️ an, geht er von selbst an, sobald dein Handy in die Zone eines Geschäfts kommt, und wieder aus, wenn du gehst. Was du selbst ein- oder ausschaltest, lässt die Automatik in Ruhe.",
@@ -108,7 +108,7 @@ const EL_GUIDE = [
       "<b>🌐 From the internet:</b> “Times from OpenStreetMap” fetches hours, address and phone at the push of a button (entered by volunteers, please check).",
       "<b>🏬 Branches</b> (e.g. 3× the same shop): ⚙️ → Stores → “🏬 Edit branches”. Per branch <b>✏️ Edit</b>: name, address, phone, tips and own hours. Only 💾 Save stores it.",
       "<b>🗞️ Flyer link:</b> in ⚙️ → Stores → store you can save the address of a flyer. Hold the name at the top, then “🗞️ Open flyer”. Only the address is stored, nothing is fetched by itself.",
-      "<b>📤 Print & share</b> (under the list): print as a sheet, save or share as <b>PDF</b> (on iPhone via “Share”) or show a <b>QR code</b> to scan with another phone.",
+      "<b>📤 Print & share</b> (under the list): print as a sheet, save or share as <b>PDF</b> (on iPhone via “Share”) or show a <b>QR code</b> to scan with another phone. Admins also find the <b>🎫 guest link</b> there – only after entering the settings PIN.",
       "<b>💡 Screen always on:</b> in store mode a light-bulb icon appears. Tap = the screen stays on. In the HA app this needs the app setting “Keep screen on”.",
       "<b>Automatic (option):</b> If “Store mode automatic” is on in ⚙️, it switches on by itself when your phone enters a store's zone, and off when you leave. Whatever you switch yourself, the automation leaves alone.",
       "If your location says you are in a store, <b>▥ checks off the scanned product</b> (see “Barcodes”).",
@@ -277,15 +277,24 @@ const EL_HELP = {
   ]],
   offers: ["extras", [
     "Braucht eine <b>Postleitzahl</b> (nur Admins). Dazu: „Nur diese Geschäfte“ (leer = alle), wie oft nachgeschaut wird (alle 3/6/12/24 Std.), <b>Speichern</b>, <b>Jetzt nachschauen</b>, <b>Ausschalten</b>. Die Statuszeile zeigt Zahl und letzte Prüfung. Die Angebote kommen inoffiziell von Marktguru und können jederzeit ausfallen.",
+    "🌍 <b>Geschäft im Nachbarland</b> (Grenzregion Deutschland/Österreich): beim Geschäft bzw. der Filiale <b>🌍 Land</b> (DE oder AT) und <b>📍 Adresse</b> mit Postleitzahl eintragen. Dann wird für dieses Geschäft zusätzlich auf marktguru.de bzw. .at gesucht, mit der Postleitzahl aus der Adresse. Die Statuszeile zeigt „🌍 Auch im Nachbarland“.",
     "📬 <b>Eigene Angebote</b> (z. B. Schweiz): Eine eigene Automation kann mit der Aktion <code>einkaufsliste.angebote_melden</code> Angebote schicken (Name, Geschäft, Preis, gültig bis, Währung wie CHF, Link zur Produktseite). Sie erscheinen wie diese hier am Artikel – auch wenn Marktguru aus ist. Beispiel in der README unter „🤖 Für Automationen“.",
   ], [
     "Needs a <b>postcode</b> (admins only). Also: “Only these stores” (empty = all), how often to check (every 3/6/12/24 h), <b>Save</b>, <b>Check now</b>, <b>Switch off</b>. The status line shows the count and the last check. The offers come unofficially from Marktguru and can stop at any time.",
+    "🌍 <b>Store in the neighbouring country</b> (border region Germany/Austria): set <b>🌍 Country</b> (DE or AT) and an <b>📍 address</b> with postcode on the store or branch. Offers for this store are then also searched on marktguru.de or .at, using the postcode from the address. The status line shows “🌍 Also across the border”.",
     "📬 <b>Your own offers</b> (e.g. Switzerland): your own automation can send offers with the action <code>einkaufsliste.angebote_melden</code> (name, store, price, valid until, currency like CHF, link to the product page). They show up at the item like these – even when Marktguru is off. Example in the README under “🤖 For automations”.",
   ]],
   recalls: ["extras", [
     "<b>Einschalten</b> (nur Admins). Alle 6 Stunden werden die offiziellen Warnungen von lebensmittelwarnung.de mit allem verglichen, was in den letzten 30 Tagen abgehakt wurde. Treffer kommen als Meldung in Home Assistant, stehen hier mit Link und lassen sich mit ✔ wegklicken. In der Liste bekommt der Artikel ein rotes ❗. Treffer verschwinden von selbst, wenn der Kauf über 30 Tage her ist oder die Warnung älter als 60 Tage. Steht beim Artikel eine Notiz (z. B. die Marke), schaut die Liste, ob sie in der Warnung vorkommt: rot „Eure Marke steht in der Warnung“, sonst ein oranges ❗ „vielleicht eine andere Marke“. Im Link trotzdem prüfen, ob eure Packung betroffen ist. Die Warnungen umfassen auch Kosmetik, Spielzeug, Geschirr und Kleidung – Tierfutter leider nicht.",
   ], [
     "<b>Turn on</b> (admins only). Every 6 hours the official warnings from lebensmittelwarnung.de are compared with everything checked off in the last 30 days. Matches arrive as a Home Assistant notification, are listed here with a link and can be dismissed with ✔. In the list the item gets a red ❗. Matches disappear on their own when the purchase is more than 30 days ago or the warning is older than 60 days. If the item has a note (e.g. the brand), the list checks whether it appears in the warning: red “Your brand is in the warning”, otherwise an orange ❗ “maybe a different brand”. Still check the link to see whether your pack is affected. The warnings also cover cosmetics, toys, dishes and clothing – sadly not pet food.",
+  ]],
+  timernotify: ["extras", [
+    "<b>⏰ Kochtimer fertig → Meldung aufs Handy</b>, auch wenn keine Karte offen ist (die Timer laufen sowieso in Home Assistant). Häkchen bei den Handys setzen (die Liste zeigt alle Melde-Dienste, die Home-Assistant-App heißt <code>mobile_app_…</code>), <b>Speichern</b>. Leer = aus (Standard). Nur Admins.",
+    "<b>📱 Nur an den, der gestartet hat:</b> Die Meldung geht nur an die Handys der Person, die den Timer gestartet hat (über ihre Person in Home Assistant und deren App-Gerät). Ist so ein Handy nicht unter den Häkchen, bekommen alle ausgewählten die Meldung. Wer mehr will (Alexa-Ansage, Licht blinken): das Ereignis <code>einkaufsliste_timer_fertig</code> gibt es weiterhin.",
+  ], [
+    "<b>⏰ Cooking timer done → alert on the phone</b>, even when no card is open (the timers run in Home Assistant anyway). Tick the phones (the list shows all notify services, the Home Assistant app is called <code>mobile_app_…</code>), <b>Save</b>. Empty = off (default). Admins only.",
+    "<b>📱 Only to whoever started it:</b> the alert only goes to the phones of the person who started the timer (via their person in Home Assistant and its app device). If none of their phones is ticked, all ticked phones get it. Want more (Alexa announcement, flashing light)? The event <code>einkaufsliste_timer_fertig</code> is still there.",
   ]],
   spend: ["extras", [
     "Eigener Schalter plus <b>„🎉 Automatisch fragen“</b> (erscheint erst, wenn das Protokoll an ist). Ausschalten versteckt nur die Anzeige – die Einträge bleiben gespeichert. Gilt für alle Geräte.",
@@ -339,7 +348,7 @@ const EL_HELP = {
     "Who did what and when, with filters (person, store, action), search and a symbol legend. At the top <b>📈 Often not available</b> (✖ hides an entry). How long the history is kept (7/30/90/180/365 days) you set there; “Clear history” deletes it.",
   ]],
   cleanup: ["data", [
-    "Einmal pro Woche werden alte offene Sachen <b>abgehakt</b>, gelöscht wird nichts. An/Aus, Tag, Uhrzeit und Mindestalter stellst du hier ein (gilt für alle). „Jetzt aufräumen“ und „Alles abhaken“ gehen sofort. Die Seite hat <b>Kästen zum Aufklappen</b> (Automatisch, Von Hand, Liste löschen, Alles löschen, Werkseinstellungen) – immer nur einer ist offen.",
+    "Einmal pro Woche werden alte offene Sachen <b>abgehakt</b>, gelöscht wird nichts. An/Aus, Tag, Uhrzeit und Mindestalter stellst du hier ein (gilt für alle). Mit „📌 Anpinnen erlauben“ bleiben einzelne Artikel für immer stehen (lange drücken → 📌 Anpinnen). „Jetzt aufräumen“ und „Alles abhaken“ gehen sofort. Die Seite hat <b>Kästen zum Aufklappen</b> (Automatisch, Von Hand, Liste löschen, Alles löschen, Werkseinstellungen) – immer nur einer ist offen.",
     "<b>🧽 Liste löschen</b> (nur Admins): Geschäft wählen, dann „Erledigte löschen“ oder „Liste leeren“. Der Katalog bleibt. <b>🧹 Alles löschen</b>: Liste und ganzer Katalog mit Fotos, Barcodes, Notizen und Favoriten – nicht rückgängig. <b>💣 Werkseinstellungen</b>: wirklich alles zurück auf Anfang (auch Geschäfte, Kategorien, Rezepte, Karten, Verbindungen; nur die PIN bleibt). Alle drei mit Sicherheitsfragen – vorher lieber eine Sicherung machen.",
   ], [
     "Once a week old open things are <b>checked off</b>, nothing is deleted. On/off, day, time and minimum age you set here (applies to everyone). “Tidy up now” and “Check off all” work at once. The page has <b>boxes you open and close</b> (automatic, by hand, delete list, delete everything, factory reset) – only one is open at a time.",
@@ -382,6 +391,16 @@ const EL_HELP = {
   ], [
     "Your look back at the year: how many items were bought and added, the 5 most frequent products, who adds the most, the favourite store and the busiest month. It only <b>counts</b> (number per product, person, store and month) and stays in your Home Assistant. Counting starts the day it was added – there are no numbers for earlier. An admin can switch it off for everyone and delete the counters.",
   ]],
+  statistik: ["data", [
+    "📊 Eure Einkäufe in Zahlen, in Reitern: <b>Artikel</b> (die 10 meistgekauften), <b>Geschäfte</b> (wie oft dort gekauft, mit 🧾 Einkaufs-Protokoll auch die Summe in €), <b>Personen</b> (wer hakt ab, wer trägt ein) und <b>Monate</b> (die letzten 12). Gezählt wird mit den Zählern vom 🎁 Jahresrückblick – nur Anzahlen, alles bleibt in deinem Home Assistant. Ist der Jahresrückblick aus, wird nichts Neues gezählt.",
+  ], [
+    "📊 Your shopping in numbers, in tabs: <b>Items</b> (the 10 bought most), <b>Stores</b> (how often bought there, with the 🧾 purchase log also the total in €), <b>People</b> (who checks off, who adds) and <b>Months</b> (the last 12). It uses the counters of the 🎁 year in review – only numbers, everything stays in your Home Assistant. If the year in review is off, nothing new is counted.",
+  ]],
+  guest: ["app", [
+    "🎫 Ein Link für Nachbarn oder Babysitter <b>ohne Home-Assistant-Konto</b>: Der Gast sieht nur die offenen Artikel (Name, Menge, Notiz) und kann abhaken – sonst nichts. Nur Admins erstellen ihn, immer mit eigener <b>PIN</b> (4–8 Ziffern) und <b>Ablaufzeit</b> (höchstens 24 Stunden). Wahlweise nur ein Geschäft. <b>🔒 Jetzt sperren</b> oder ein neuer Link machen den alten sofort ungültig. Der Link wird nur einmal angezeigt. Tipp: PIN und Link getrennt schicken. Nach 5 falschen PINs ist 15 Minuten Pause, nach 25 ist der Link gesperrt. Von außen braucht der Gast die Nabu-Casa- oder eigene externe Adresse.",
+  ], [
+    "🎫 A link for neighbours or babysitters <b>without a Home Assistant account</b>: the guest only sees the open items (name, quantity, note) and can check them off – nothing else. Only admins create it, always with its own <b>PIN</b> (4–8 digits) and an <b>expiry</b> (24 hours at most). Optionally just one store. <b>🔒 Lock now</b> or a new link makes the old one invalid at once. The link is shown only once. Tip: send PIN and link separately. After 5 wrong PINs there is a 15-minute pause, after 25 the link is locked. From outside the guest needs the Nabu Casa or your own external address.",
+  ]],
   privacy: ["app", [
     "Zeigt in einfachen Worten, was in deinem Home Assistant bleibt und was ins Internet geht. Dort schaltet ein Admin auch <b>„Datenschutz an“</b> für alle Geräte: keine Kamera, keine Fotos, kein Barcode-Scanner, kein KI-Kochen.",
   ], [
@@ -390,19 +409,19 @@ const EL_HELP = {
 };
 const EL_HELP_GROUPS = [ // Kapitel der Einstellungs-Anleitung: [Schlüssel, Icon, Titel de, Titel en, [Zeilen], Farbe]
   ["list", "📋", "Meine Liste", "My list", ["stores", "categories", "persons", "products", "recipes"], "#43a047"],
-  ["extras", "🎛️", "Extras", "Extras", ["offers", "recalls", "spend", "cards", "notetpl", "aicook", "autoshop", "mascot"], "#f9a825"],
-  ["data", "💾", "Daten", "Data", ["transfer", "log", "cleanup"], "#1e88e5"],
+  ["extras", "🎛️", "Extras", "Extras", ["offers", "recalls", "timernotify", "spend", "cards", "notetpl", "aicook", "autoshop", "mascot"], "#f9a825"],
+  ["data", "💾", "Daten", "Data", ["transfer", "log", "statistik", "cleanup"], "#1e88e5"],
   ["health", "🩺", "Gesundheit", "Health", ["check", "errors", "stats"], "#00897b"],
   ["view", "👁️", "Ansicht", "View", ["listview", "labels", "theme"], "#1e88e5"],
-  ["app", "📱", "App & Info", "App & info", ["app", "pin", "privacy", "year"], "#3949ab"],
+  ["app", "📱", "App & Info", "App & info", ["app", "pin", "guest", "privacy", "year"], "#3949ab"],
 ];
 
 const EL_HELP_TITLES = { // [Titel de, Titel en, Icon]
   stores: ["Geschäfte", "Stores", "🏪"], categories: ["Kategorien", "Categories", "🗂️"], persons: ["Personen", "People", "👤"], products: ["Produkte/Katalog", "Products/catalog", "📦"], recipes: ["Rezepte", "Recipes", "👨‍🍳"],
-  offers: ["Angebote", "Offers", "🏷️"], recalls: ["Rückruf-Warnung", "Recall warning", "⚠️"], spend: ["Einkaufs-Protokoll", "Purchase log", "🧾"], cards: ["Kundenkarten", "Loyalty cards", "💳"], notetpl: ["Notiz-Vorlagen", "Note templates", "📝"], aicook: ["KI-Kochen", "AI cooking", "🤖"], autoshop: ["Laden-Modus automatisch", "Store mode automatic", "📍"], mascot: ["Maskottchen", "Mascot", "🛒"], labels: ["Beschriftungen", "Labels", "🏷️"],
+  offers: ["Angebote", "Offers", "🏷️"], recalls: ["Rückruf-Warnung", "Recall warning", "⚠️"], timernotify: ["Timer-Meldung", "Timer alert", "⏰"], spend: ["Einkaufs-Protokoll", "Purchase log", "🧾"], cards: ["Kundenkarten", "Loyalty cards", "💳"], notetpl: ["Notiz-Vorlagen", "Note templates", "📝"], aicook: ["KI-Kochen", "AI cooking", "🤖"], autoshop: ["Laden-Modus automatisch", "Store mode automatic", "📍"], mascot: ["Maskottchen", "Mascot", "🛒"], labels: ["Beschriftungen", "Labels", "🏷️"],
   transfer: ["Import & Sicherung", "Import & backup", "📥"], log: ["Verlauf", "History", "🕘"], cleanup: ["Aufräumen", "Tidy up", "🧹"],
   check: ["Alles ok?", "All OK?", "✅"], errors: ["Fehler-Protokoll", "Error log", "🐞"], stats: ["Ressourcen", "Resources", "📊"],
-  listview: ["Listenansicht – für alle", "List view – for everyone", "👁️"], app: ["Offline-App", "Offline app", "📱"], theme: ["Hell / Dunkel", "Light / dark", "🌓"], pin: ["Schutz (PIN)", "Protection (PIN)", "🔒"], privacy: ["Datenschutz", "Privacy", "🛡️"], year: ["Euer Jahr in Einkäufen", "Your year in shopping", "🎁"],
+  listview: ["Listenansicht – für alle", "List view – for everyone", "👁️"], app: ["Offline-App", "Offline app", "📱"], theme: ["Hell / Dunkel", "Light / dark", "🌓"], pin: ["Schutz (PIN)", "Protection (PIN)", "🔒"], privacy: ["Datenschutz", "Privacy", "🛡️"], year: ["Euer Jahr in Einkäufen", "Your year in shopping", "🎁"], statistik: ["Statistik", "Statistics", "📊"], guest: ["Gast-Link", "Guest link", "🎫"],
 };
 const EL_NEWS_MAX = 15;
 // 🔢 Versionen vergleichen, auch Testversionen: 2.76.15-beta.5 ist neuer als 2.76.14, aber älter als 2.76.15. > 0 = a neuer, < 0 = b neuer
@@ -420,15 +439,48 @@ function elVerCmp(a, b) {
 // 🧪 „Neu in dieser Beta“: immer die höchste Beta-Nummer oben – egal, ob ein Eintrag oben oder unten eingefügt wurde
 const elBetaNo = (n) => Number(String(n?.[2] || "").replace(/\D+/g, "")) || 0;
 const elBetaNewsSorted = () => EL_BETA_NEWS.map((n, i) => [n, i]).sort((a, b) => elBetaNo(b[0]) - elBetaNo(a[0]) || a[1] - b[1]).map((x) => x[0]);
-const EL_BETA_NEWS = [
-];
+const EL_BETA_NEWS = [];
 const SET_COLORS = { // 🎨 Icon-Kästchen in den Einstellungen (wie im Handy-Menü)
   stores: "#43a047", categories: "#fb8c00", persons: "#8e24aa", products: "#00897b", recipes: "#e53935",
-  offers: "#d81b60", recalls: "#e65100", spend: "#3949ab", cards: "#00acc1", notetpl: "#6d4c41", aicook: "#5e35b1", autoshop: "#7cb342", mascot: "#f9a825", labels: "#546e7a",
+  offers: "#d81b60", recalls: "#e65100", timernotify: "#00897b", spend: "#3949ab", cards: "#00acc1", notetpl: "#6d4c41", aicook: "#5e35b1", autoshop: "#7cb342", mascot: "#f9a825", labels: "#546e7a",
   transfer: "#1e88e5", log: "#757575", cleanup: "#8d6e63", check: "#43a047", errors: "#e53935", stats: "#00897b",
-  listview: "#1e88e5", app: "#3949ab", theme: "#424242", pin: "#f4511e", privacy: "#455a64", news: "#fb8c00", year: "#e91e63", credits: "#ec407a",
+  listview: "#1e88e5", app: "#3949ab", theme: "#424242", pin: "#f4511e", privacy: "#455a64", news: "#fb8c00", year: "#e91e63", credits: "#ec407a", statistik: "#5e35b1", guest: "#00897b",
 }; // 🆕 „Was ist neu“ zeigt höchstens so viele Neuerungen (Punkte)
 const EL_NEWS = [
+  ["🧠 <b>„Nicht bei …“ bleibt gemerkt:</b> Die Haken gehören jetzt zum Produkt – nach dem Aufräumen oder Löschen kommt die Cola beim nächsten Eintragen wieder mit „Nicht bei Aldi“. Und abgehakt in einem Geschäft bleibt so ein Artikel „Egal wo“ (ohne Haken zieht er wie gewohnt ins Geschäft um). Soll er immer in ein Geschäft? Dann beim Bearbeiten das Geschäft wählen.",
+   "🧠 <b>“Not at …” is remembered:</b> the ticks now belong to the product – after tidying up or deleting, cola comes back with “Not at Aldi” the next time you add it. And checked off in a store, such an item stays “Anywhere” (without ticks it moves to the store as usual). Always in one store? Then pick the store when editing."],
+  ["🔴 <b>„Nicht bei …“ besser sichtbar:</b> Das „Egal wo“-Schild eines Artikels mit ausgenommenen Geschäften hat jetzt einen dünnen <b>roten Rand</b> (dazu das 🚫 statt Fragezeichen).",
+   "🔴 <b>“Not at …” easier to spot:</b> the “Anywhere” tag of an item with excluded stores now has a thin <b>red border</b> (plus the 🚫 instead of the question mark)."],
+  ["🏬 <b>Ausgenommene Geschäfte:</b> Im Reiter eines Geschäfts, das unter ⚙️ → Aufräumen ausgenommen ist, steht unten jetzt „🏬 Hier wird nicht automatisch aufgeräumt – alles bleibt offen“ statt gar nichts.",
+   "🏬 <b>Excluded stores:</b> in the tab of a store excluded under ⚙️ → Tidy up, the bottom line now says “🏬 No automatic tidy-up here – everything stays open” instead of nothing."],
+  ["📌 <b>Anpinnen:</b> Unter ⚙️ → Aufräumen → Automatisch gibt es den Schalter „📌 Anpinnen erlauben“ (Standard aus). Ist er an, steht beim langen Drücken auf einen Artikel <b>📌 Anpinnen</b> – der Artikel bleibt dann für immer stehen, das Aufräumen überspringt ihn, und statt dem 🧹-Datum steht nur ein 📌 dran. Schalter aus = Knopf weg, alles wird wieder aufgeräumt (die Pins bleiben gemerkt).",
+   "📌 <b>Pin items:</b> under ⚙️ → Tidy up → Automatic there is a new switch “📌 Allow pinning” (off by default). When it is on, long-pressing an item shows <b>📌 Pin</b> – the item then stays forever, tidying up skips it and instead of the 🧹 date it only shows a 📌. Switch off = button gone, everything is tidied up again (pins are remembered)."],
+  ["🚫 <b>„Nicht bei …“ pro Artikel:</b> Beim Bearbeiten eines „Egal wo“-Artikels hakst du Geschäfte an, in denen er <b>nicht</b> stehen soll – z. B. Cola überall außer bei dm, Milch aber auch bei dm. Gilt in der Karte, im Gast-Link und in der App. Am Artikel wird aus dem „Egal wo“-Fragezeichen dann ein rotes 🚫 (wo er fehlt, zeigt der Tooltip).",
+   "🚫 <b>“Not at …” per item:</b> when editing an “Anywhere” item, tick the stores where it should <b>not</b> show up – e.g. Cola everywhere except dm, but milk at dm too. Works in the card, the guest link and the app. On the item the “Anywhere” question mark then turns into a red 🚫 (the tooltip says where)."],
+  ["🧹 <b>Aktionen:</b> <code>einkaufsliste.add_item</code> kennt jetzt <code>not_in</code> (Geschäftsnamen für „Nicht bei …“), <code>einkaufsliste.remove_item</code> kennt <code>all: true</code> = alle Artikel mit dem Namen löschen statt nur den ersten.",
+   "🧹 <b>Actions:</b> <code>einkaufsliste.add_item</code> now knows <code>not_in</code> (store names for “Not at …”), <code>einkaufsliste.remove_item</code> knows <code>all: true</code> = remove every item with that name instead of only the first."],
+  ["🎫 <b>Gast-Link unter „Drucken & Teilen“:</b> Unter der Liste → <b>Drucken & Teilen</b> → <b>🎫 Gast-Link</b> (nur Admins). Geht nur mit der <b>Einstellungen-PIN</b>: erst PIN eingeben, dann Dauer, Gast-PIN und Geschäft wählen (das offene Geschäft ist schon vorausgewählt), Link kopieren oder teilen – oder sperren. Ohne Einstellungen-PIN bleibt der Knopf zu.",
+   "🎫 <b>Guest link under “Print & share”:</b> below the list → <b>Print & share</b> → <b>🎫 Guest link</b> (admins only). Only works with the <b>settings PIN</b>: enter the PIN first, then pick duration, guest PIN and store (the open store is preselected), copy or share the link – or lock it. Without a settings PIN the button stays locked."],
+  ["🧺 <b>Teilweise gekauft:</b> Nur 2 von 3 bekommen? Artikel lange drücken → <b>Teilweise</b> → „2x“ antippen. Das Gekaufte zählt wie abgehakt (Verlauf, Statistik, Ereignis für Automationen), der Rest bleibt mit „1x“ offen auf der Liste. Geht bei ganzen Stückzahlen (3x, 4 Dosen …), auch ohne Netz.",
+   "🧺 <b>Partly bought:</b> only got 2 of 3? Press and hold the item → <b>Partly</b> → tap “2x”. What you bought counts as checked off (history, statistics, event for automations), the rest stays open on the list as “1x”. Works with whole numbers (3x, 4 cans …), offline too."],
+  ["🕒 <b>Ladenschluss im Reiter:</b> In der letzten Stunde vor Ladenschluss wird die 🕒 Uhr im Reiter des Geschäfts <b>orange</b> (Uhrzeit beim Draufzeigen), ist es zu, wird der Reiter grau. Nutzt die Öffnungszeiten, die du beim Geschäft hinterlegt hast (mit Filialen und Feiertagen).",
+   "🕒 <b>Closing time in the tab:</b> in the last hour before closing the 🕒 clock in the store tab turns <b>orange</b> (time on hover), once it is closed the tab turns grey. Uses the opening hours you set for the store (with branches and holidays)."],
+  ["🤔 <b>Mengen-Check klüger:</b> Bei „30 Milch“ fragt die Karte jetzt „Wirklich 30?“ – vorher erst ab 50 Stück. Nur eine Zahl bekommt die gemerkte Einheit, und wer sonst 2 kauft, wird bei 10 oder mehr gefragt (mit „Zuletzt waren es 2x“). Fängt Tippfehler und Quatsch-Diktate in der Karte ab.",
+   "🤔 <b>Smarter quantity check:</b> for “30 milk” the card now asks “Really 30?” – before only from 50 pieces. A plain number gets the remembered unit, and if you usually buy 2 you are asked at 10 or more (with “Last time it was 2x”). Catches typos and silly dictations in the card."],
+  ["⭐ <b>Rezept-Sterne:</b> Bei jedem Rezept (Rezepte antippen) 1–5 Sterne vergeben – jeder seine eigenen, angezeigt wird der Durchschnitt –, nochmal tippen = weg. Der ⭐-Knopf neben der Suche sortiert nach <b>Familienliebling</b> – die Lieblinge stehen oben.",
+   "⭐ <b>Recipe stars:</b> give every recipe 1–5 stars (tap the recipe) – everyone their own, the average is shown –, tap again = remove. The ⭐ button next to the search sorts by <b>family favourite</b> – the favourites come first."],
+  ["📊 <b>Statistik:</b> ⚙️ → Daten → <b>Statistik</b> mit Reitern wie bei Fixkosten und Kegelclub: meistgekaufte Artikel, Einkäufe je Geschäft (mit 🧾 Protokoll auch in €), wer kauft und wer einträgt, und die letzten 12 Monate.",
+   "📊 <b>Statistics:</b> ⚙️ → Data → <b>Statistics</b> with tabs like in Fixed costs and Bowling club: items bought most, purchases per store (with the 🧾 log also in €), who shops and who adds, and the last 12 months."],
+  ["🩺 <b>Reparatur-Hinweise in Home Assistant:</b> Lehnt Grocy den API-Schlüssel ab, ist Grocy nicht erreichbar oder kommen von Marktguru bzw. der Rückruf-Warnung gerade keine Daten, steht das jetzt auch unter <b>Einstellungen → System → Reparaturen</b>. Klappt es wieder, verschwindet der Hinweis von selbst.",
+   "🩺 <b>Repair notices in Home Assistant:</b> if Grocy rejects the API key, Grocy cannot be reached or Marktguru or the recall warning deliver no data right now, this now also shows under <b>Settings → System → Repairs</b>. Once it works again the notice disappears by itself."],
+  ["🎫 <b>Gast-Link:</b> ⚙️ → App & Info → <b>Gast-Link</b> (nur Admins): ein Link für Nachbarn oder Babysitter ohne Home-Assistant-Konto. Der Gast sieht nur die offenen Artikel und kann abhaken – sonst nichts. Immer mit eigener PIN, höchstens 24 Stunden, wahlweise nur ein Geschäft, <b>🔒 Jetzt sperren</b> jederzeit. Falsche PINs bremsen und sperren.",
+   "🎫 <b>Guest link:</b> ⚙️ → App & info → <b>Guest link</b> (admins only): a link for neighbours or babysitters without a Home Assistant account. The guest only sees the open items and can check them off – nothing else. Always with its own PIN, 24 hours at most, optionally just one store, <b>🔒 Lock now</b> any time. Wrong PINs slow down and lock."],
+  ["🌍 <b>Angebote im Nachbarland:</b> Wohnst du an der Grenze und kaufst auch drüben ein (z. B. in Österreich wohnen, bei Kaufland in Lindau einkaufen)? Beim Geschäft bzw. der Filiale unter <b>🌍 Land</b> DE oder AT wählen und die <b>📍 Adresse</b> mit Postleitzahl eintragen. Dann sucht 🏷️ Angebote für dieses Geschäft zusätzlich im anderen Land, mit der Postleitzahl aus der Adresse. Alle anderen Geschäfte bleiben wie bisher.",
+   "🌍 <b>Offers across the border:</b> live near the border and shop on the other side too (e.g. live in Austria, shop at Kaufland in Lindau)? On the store or branch pick DE or AT under <b>🌍 Country</b> and enter the <b>📍 address</b> with postcode. 🏷️ Offers then also searches the other country for this store, with the postcode from the address. All other stores stay as before."],
+  ["⏰ <b>Timer-Meldung aufs Handy:</b> Ist ein Kochtimer fertig, kommt eine Meldung aufs Handy, auch wenn keine Karte offen ist, ohne eigene Automation. ⚙️ → Extras → <b>Timer-Meldung</b>: Handys ankreuzen, Speichern. Auf Wunsch nur an den, der den Timer gestartet hat. Standard: aus.",
+   "⏰ <b>Timer alert on the phone:</b> when a cooking timer is done, an alert goes to the phone, even when no card is open, without your own automation. ⚙️ → Extras → <b>Timer alert</b>: tick the phones, Save. Optionally only to whoever started the timer. Default: off."],
+  ["🔎 <b>Foto suchen findet mehr:</b> Die Suche fragt jetzt zuerst die neue Open-Food-Facts-Suche, sucht erst nach dem Namen allein (Marke/Notiz nur zusätzlich) und schaut doppelt so viele Treffer nach Fotos durch.",
+   "🔎 <b>Search photo finds more:</b> the search now asks the new Open Food Facts search first, looks for the name alone first (brand/note only in addition) and checks twice as many hits for photos."],
   ["🔎 <b>Foto suchen (ohne Barcode):</b> Kein Foto beim Produkt, weil es keinen Barcode hat (z. B. Obst, Brötchen, Sachen von der Theke)? Beim 📷 gibt es jetzt <b>🔎 Foto suchen</b>: Home Assistant fragt Open Food Facts nach dem Namen, du bekommst bis zu 4 Fotos zur Auswahl und tippst eins an. Im Katalog steht beim Produkt ohne Barcode der Knopf <b>„Foto suchen“</b>. Eigene Fotos bleiben immer, das neue kommt dazu. Nur auf Knopfdruck, nie automatisch; bei Datenschutz an ist es aus.",
    "🔎 <b>Search photo (no barcode):</b> No photo for a product because it has no barcode (e.g. fruit, bread rolls, things from the counter)? The 📷 now offers <b>🔎 Search photo</b>: Home Assistant asks Open Food Facts by name, you get up to 4 photos to choose from and tap one. In the catalogue, products without a barcode have a <b>“Search photo”</b> button. Your own photos always stay, the new one is added. Only on request, never automatically; off when privacy is on."],
   ["🗑️ <b>Löschen im „lange drücken“-Menü:</b> Ein falscher Artikel auf der Liste (z. B. vom Sprachassistenten falsch verstanden)? Artikel lange drücken → <b>🗑️ Löschen</b>. Gelöscht wird nicht sofort: Nach der ⚙️-PIN (falls eine gesetzt ist) landest du in ⚙️ → Produkte → <b>„Einkaufsliste Produkte löschen“</b>, der Name steht schon in der Suche. Wer einkauft, kann so nicht aus Versehen etwas löschen.",
@@ -734,11 +786,16 @@ const LOG_ACT = {
   out: { label: "⇄ war aus", verb: "hat % als „war aus“ markiert" },
   gone: { label: "❌ war nicht da", verb: "hat % als „war nicht da“ markiert" },
   gone_done: { label: "❌ ohne Kauf erledigt", verb: "hat % ohne Kauf erledigt" },
+  pin: { label: "📌 angepinnt", verb: "hat % angepinnt" },
+  unpin: { label: "📌 nicht mehr angepinnt", verb: "hat % nicht mehr angepinnt" },
+  partial: { label: "🧺 teilweise gekauft", verb: "hat einen Teil von % gekauft" },
+  guest_on: { label: "🎫 Gast-Link erstellt", verb: "hat den % erstellt" },
+  guest_off: { label: "🔒 Gast-Link gesperrt", verb: "hat den % gesperrt" },
   remove: { label: "🗑️ gelöscht", verb: "hat % gelöscht" },
   buy: { label: "🧾 bezahlt", verb: "hat % bezahlt" },
   catalog: { label: "📦 im Katalog angelegt", verb: "hat % im Katalog angelegt" },
 };
-const LOG_VIA = { card: "✍️", scan: "▥", recipe: "🍳", merge: "🔗", cleanup: "🧹", service: "🤖", sync: "🔁", mail: "📧" };
+const LOG_VIA = { guest: "🎫", card: "✍️", scan: "▥", recipe: "🍳", merge: "🔗", cleanup: "🧹", service: "🤖", sync: "🔁", mail: "📧" };
 const WD_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 const pyWd = (d) => (d.getDay() + 6) % 7;
 const DAY = 86400000;
@@ -800,6 +857,24 @@ function elStoreInfos(st, now = new Date()) {
 function elStoreClosed(st, now = new Date()) {
   const r = elStoreInfos(st, now);
   return r.branches ? r.branches.every((x) => x.info?.open === false) : r.info?.open === false;
+}
+// 🕒 Ladenschluss im Reiter: schließt das Geschäft in der nächsten Stunde? Dann die Uhrzeit („19:30“), sonst null.
+// Mit Filialen: nur wenn ALLE offenen Filialen bald schließen (dann die späteste Zeit).
+// ⭐ Sterne pro Person lokal nachziehen (gleiche Rechnung wie im Server: Durchschnitt mit einer Nachkommastelle)
+function elRateLocal(r, uid, name, n) {
+  const rt = { ...(r.ratings || (r.stars ? { _alt: { s: Math.round(r.stars) } } : {})) };
+  delete rt._alt;
+  if (n >= 1 && n <= 5) rt[uid || name || "?"] = { s: n, ...(name ? { n: name } : {}) }; else delete rt[uid || name || "?"];
+  const v = Object.values(rt);
+  if (v.length) { r.ratings = rt; r.stars = Math.round((v.reduce((a, x) => a + x.s, 0) / v.length) * 10) / 10; r.stars_n = v.length; } else { delete r.ratings; delete r.stars; delete r.stars_n; }
+}
+function elStoreSoon(st, now = new Date()) {
+  const cur = now.getHours() * 60 + now.getMinutes();
+  const soon = (info) => { if (!info?.open) return null; const left = elMin(info.until) - cur; return left > 0 && left <= 60 ? info.until : false; };
+  const r = elStoreInfos(st, now);
+  if (!r.branches) return soon(r.info) || null;
+  const open = r.branches.map((x) => soon(x.info)).filter((v) => v !== null);
+  return open.length && open.every(Boolean) ? open.sort().at(-1) : null;
 }
 // 📄 Kleiner PDF-Baukasten (ohne fremde Bibliothek): A4, Helvetica, Kästchen zum Abhaken
 // Warum? iPhone, iPad und die HA-App können aus dem Browser nicht drucken (window.print geht dort nicht) – eine echte PDF-Datei schon: Teilen → Drucken (AirPrint).
@@ -1394,20 +1469,27 @@ function unitOf(q) {
   return c ? c[0] : null;
 }
 const isBareQty = (q) => new RegExp(`^\\s*${QTY_NUM}\\s*$`, "i").test(String(q ?? ""));
-// 🤔 Ungewöhnlich große Menge? („300 Eier“, „40 kg Mehl“) – nur zum Nachfragen beim Eintragen
-function qtyOdd(name, q) {
+// 🤔 Mengen-Plausibilität: ungewöhnlich große Menge? („30 Milch“, „300 Eier“, „40 kg Mehl“) – nur zum Nachfragen beim Eintragen.
+// hist = was die Liste sich zum Produkt gemerkt hat ({unit, qty}): nur eine Zahl bekommt die gemerkte Einheit,
+// und wer sonst „2x“ kauft, wird bei „30“ gefragt (ab 10 und mindestens 5× so viel wie zuletzt).
+function qtyVal(q) {
   const m = String(q ?? "").trim().replace(/\s+/g, " ").match(QTY_RX);
-  if (!m) return false;
+  if (!m) return 0;
   const r = m[1].trim().match(QTY_RANGE_RX);
-  const v = r ? Math.max(qtyValue(r[1]) ?? 0, r[2] ? qtyValue(r[2]) ?? 0 : 0) : 0;
-  const u = unitOf(q);
+  return r ? Math.max(qtyValue(r[1]) ?? 0, r[2] ? qtyValue(r[2]) ?? 0 : 0) : 0;
+}
+function qtyOdd(name, q, hist = null) {
+  const v = qtyVal(q);
+  let u = unitOf(q);
   if (!v || !u) return false;
+  if (isBareQty(q)) u = hist?.unit || "x"; // nur eine Zahl: Home Assistant nimmt die gemerkte Einheit („200 Mehl“ = 200 g)
+  const last = hist?.qty && unitOf(hist.qty) === u ? qtyVal(hist.qty) : 0;
+  if (last && v >= 10 && v >= last * 5) return true; // sonst kaufst du viel weniger
   const egg = /\bei(er)?\b/i.test(name);
-  if (isBareQty(q)) return v > (egg ? 60 : 1000); // nur eine Zahl: die Einheit kennt Home Assistant („200 Mehl“ = 200 g) – nur Eier und grobe Tippfehler
-  if (u === "x") return v > (egg ? 60 : 50);
-  if (u === "kg" || u === "L") return v > 10;
   if (u === "g" || u === "ml") return v > 10000;
-  return false;
+  if (u === "kg" || u === "L") return v > 10;
+  if (["mg", "cl", "dl", "EL", "TL", "Msp.", "Prise"].includes(u)) return false; // Küchenmaße: kein Einkauf in Stück
+  return v > (egg ? 60 : 20); // Stück, Packungen, Dosen, Flaschen …
 }
 // Andere Einheit an die Zahl: („2x“, „Pck.“) -> „2 Pck.“
 function applyUnit(q, unit) {
@@ -3066,6 +3148,8 @@ ha-card.labels .tool { padding:4px 6px; }
 @media (hover:none) { .tabs { scrollbar-width:none; } .tabs::-webkit-scrollbar { display:none; } }
 .tab { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; --c: var(--primary-color,#03a9f4); flex:0 0 auto; border:1.5px solid color-mix(in srgb, var(--c) 55%, transparent); background:transparent; border-radius:999px; padding:5px 12px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; font-size:.9em; }
 .tab.closed:not(.active) { opacity:.45; filter:grayscale(1); } /* 🕒 Geschäft hat gerade zu */
+.tab.soon .tclock { color:#ef6c00; } /* 🕒 schließt in der nächsten Stunde: Uhr in Orange */
+.tab.active.soon .tclock { color:#fff; background:#ef6c00; border-radius:50%; box-shadow:0 0 0 1.5px #ef6c00; }
 .tab.here { border-width:3px; box-shadow:0 0 0 2px var(--c); } /* 📍 gerade ist jemand dort */
 .tab.active.here { box-shadow:0 0 0 2px var(--card-background-color, #fff), 0 0 0 4.5px var(--c); } /* 📍 auch beim ausgewählten (eingefärbten) Reiter sichtbar: Ring mit Abstand */
 .herebar { --c: var(--primary-color,#03a9f4); margin:0 2px 8px; padding:6px 12px; border-radius:12px; font-size:.9em; border-left:4px solid var(--c); background:color-mix(in srgb, var(--c) 12%, transparent); } /* 📍 Gerade dort: Namen */
@@ -3096,6 +3180,11 @@ form.add .extras:not(:has(> :not([hidden]))) { display:none; }
 #btnFavAll ha-icon { color:#f9a825; }
 .favstar { align-self:center; font-size:13px; line-height:1; margin-left:2px; }
 .favrow { display:flex; align-items:center; gap:8px; cursor:pointer; padding:4px 2px; }
+.notinbox .notinlist { display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; }
+.notin { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:16px; cursor:pointer; border:1px solid color-mix(in srgb, var(--c) 45%, transparent); font-size:.9em; }
+.notin input { width:auto; flex:none; margin:0; }
+.notin .dot { width:9px; height:9px; border-radius:50%; background:var(--c); }
+.notin:has(input:checked) { background:color-mix(in srgb, #e53935 14%, transparent); border-color:#e53935; text-decoration:line-through; }
 .favrow input { width:auto; flex:none; }
 /* 🎚️ ⭐ Favorit als Schalter (Bearbeiten + Katalog) – wie in den Einstellungen */
 .favrow:has(.swchk) { justify-content:space-between; box-sizing:border-box; min-height:42px; padding:0 12px; border:1px solid color-mix(in srgb, var(--primary-text-color, #000) 22%, transparent); border-radius:12px; background:var(--card-background-color, var(--ha-card-background, #fff)); }
@@ -3206,6 +3295,7 @@ input:focus, select:focus, textarea:focus { border-color:var(--primary-color,#03
   background:color-mix(in srgb, var(--c) 20%, transparent); }
 .item.done .meta .chip { background:color-mix(in srgb, var(--c) 10%, transparent); font-weight:400; }
 .meta .chip::before, .pmeta .chip::before { display:none; }
+.meta .chip.notinchip { box-shadow:inset 0 0 0 1px #e53935; } /* 🚫 „Egal wo“ mit „Nicht bei …“: roter Rand (ohne die Größe zu ändern) */
 .item { border-left:4px solid var(--cc, transparent); padding-left:0; }
 .item[style*="--rc"] { box-shadow: inset -4px 0 0 var(--rc); }
 .item .txt { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
@@ -3710,6 +3800,9 @@ label.btn { cursor:pointer; }
 .recipe .rname b { display:block; word-break:normal; overflow-wrap:break-word; hyphens:auto; -webkit-hyphens:auto; }
 .recipe .rname small { color:var(--secondary-text-color); font-size:.78em; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .recipe .primary { padding:8px 10px; font-size:.85em; }
+.rstars { color:#f9a825; font-size:.85em; letter-spacing:1px; white-space:nowrap; } .recipe .rname .rstars small, .rstars small { display:inline; color:#f9a825; font-size:1em; letter-spacing:0; font-weight:600; } .rstars .off { opacity:.25; } /* ⭐ Familienliebling */
+.rstarset { grid-column:1/-1; display:flex; align-items:center; gap:2px; flex-wrap:wrap; } .rstarset .iconbtn { color:#f9a825; } .rstarset .iconbtn:not(.on) { opacity:.55; } .rstarset .hint { margin:0 0 0 6px; }
+.rstarsort.on { color:#f9a825; }
 .rtools { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:6px; margin:0 2px 10px; padding:6px 10px 10px; border:1px solid color-mix(in srgb, var(--primary-text-color, #000) 22%, transparent); border-top:0; border-radius:0 0 12px 12px; background:var(--card-background-color, var(--ha-card-background, #fff)); }
 .rtools .btn { min-width:0; justify-content:center; padding:6px 4px; min-height:40px; border-radius:12px; }
 .recipe.rv { border-bottom:0; border-radius:12px 12px 0 0; margin-bottom:0; padding-bottom:4px; }
@@ -4652,9 +4745,9 @@ const storeZones = (store) => (Array.isArray(store?.zones) ? store.zones : store
 const storePoints = (data, store) => (data?.geo?.[store?.id]?.points || []).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
 
 // ⏳ Warteschlange für Funklöcher: wird im Handy gespeichert, damit auch ein Neustart der App nichts verliert
-const QUEUE_TYPES = new Set(["einkaufsliste/item/toggle", "einkaufsliste/item/add", "einkaufsliste/item/update",
-  "einkaufsliste/item/remove", "einkaufsliste/item/move", "einkaufsliste/item/out", "einkaufsliste/item/gone",
-  "einkaufsliste/recipe/add", "einkaufsliste/recipe/update", "einkaufsliste/recipe/remove",
+const QUEUE_TYPES = new Set(["einkaufsliste/item/toggle", "einkaufsliste/item/partial", "einkaufsliste/item/add", "einkaufsliste/item/update",
+  "einkaufsliste/item/remove", "einkaufsliste/item/move", "einkaufsliste/item/out", "einkaufsliste/item/gone", "einkaufsliste/item/pin",
+  "einkaufsliste/recipe/add", "einkaufsliste/recipe/update", "einkaufsliste/recipe/rate", "einkaufsliste/recipe/remove",
   "einkaufsliste/recipe/apply", "einkaufsliste/recipe/unapply", "einkaufsliste/barcode/assign",
   "einkaufsliste/photo/set"]); // 📸 Fotos werden vorgemerkt, wenn kein Netz da ist (siehe PHOTO_QUEUE_MAX)
 const PHOTO_QUEUE_MAX = 3 * 1024 * 1024; // so viele Foto-Daten (Zeichen) dürfen höchstens vorgemerkt warten
@@ -4739,11 +4832,19 @@ function applyQueued(data, list, hass) {
       case "einkaufsliste/item/toggle":
         if (it) {
           it.checked = typeof m.checked === "boolean" ? m.checked : !it.checked; it.checked_at = now; it.checked_by = me; it._queued = true;
-          if (it.checked && !it.store_id && m.store_id) it.store_id = m.store_id; // 🤷 „Egal wo“ hier abgehakt
+          if (it.checked && !it.store_id && m.store_id && !(it.not_in || []).length) it.store_id = m.store_id; // 🤷 „Egal wo“ hier abgehakt (🚫 mit „Nicht bei …“ bleibt es „Egal wo“)
+        }
+        break;
+      case "einkaufsliste/item/partial": // 🧺 teilweise gekauft: der Rest bleibt offen
+        if (it) {
+          const q = String(it.quantity || "").match(/^(\d+)\s*(.*)$/), rest = q ? Number(q[1]) - Number(m.got) : 0;
+          if (q && rest > 0) it.quantity = normQty(q[2] && q[2] !== "x" ? `${rest} ${q[2]}` : `${rest}x`);
+          else { it.checked = true; it.checked_at = now; it.checked_by = me; }
+          it._queued = true;
         }
         break;
       case "einkaufsliste/item/update":
-        if (it) { for (const k of ["name", "quantity", "note", "own_note", "for_whom", "store_id", "category_id"]) if (k in m) it[k] = m[k]; it._queued = true; }
+        if (it) { for (const k of ["name", "quantity", "note", "own_note", "for_whom", "store_id", "category_id", "not_in"]) if (k in m) it[k] = m[k]; it._queued = true; }
         break;
       case "einkaufsliste/item/remove":
         data.items = data.items.filter((i) => i.id !== m.item_id);
@@ -4757,6 +4858,9 @@ function applyQueued(data, list, hass) {
       case "einkaufsliste/item/gone":
         if (it) { it.gone_at = now; it.out_at = null; it._queued = true; }
         break;
+      case "einkaufsliste/item/pin": // 📌 offline: Pin gleich zeigen
+        if (it) { if (m.pinned) it.pinned = true; else delete it.pinned; it._queued = true; }
+        break;
       case "einkaufsliste/recipe/add":
         if (!(data.recipes || []).some((r) => r.id === m._tmp)) {
           data.recipes = [...(data.recipes || []), { id: m._tmp, name: m.name, icon: m.icon || null, items: m.items || [], steps: m.steps || null,
@@ -4765,7 +4869,12 @@ function applyQueued(data, list, hass) {
         break;
       case "einkaufsliste/recipe/update": {
         const r = (data.recipes || []).find((x) => x.id === m.recipe_id);
-        if (r) { for (const k of ["name", "icon", "items", "steps", "heat", "servings", "servings_unit", "minutes", "step_items", "group", "plan", "source"]) if (k in m) r[k] = m[k]; r._queued = true; }
+        if (r) { for (const k of ["name", "icon", "items", "steps", "heat", "servings", "servings_unit", "minutes", "step_items", "group", "plan", "source", "stars"]) if (k in m) r[k] = m[k]; r._queued = true; }
+        break;
+      }
+      case "einkaufsliste/recipe/rate": { // ⭐ offline: eigene Sterne gleich anzeigen
+        const r = (data.recipes || []).find((x) => x.id === m.recipe_id);
+        if (r) { elRateLocal(r, hass?.user?.id, hass?.user?.name, m.stars); r._queued = true; }
         break;
       }
       case "einkaufsliste/recipe/remove":
@@ -5015,8 +5124,8 @@ class EinkaufslisteCard extends HTMLElement {
     this._clock = setInterval(() => {
       if (this._view === "list" && !this._editing && this._data) this._renderList(); // „vor 5 Min“ aktuell halten
       if (this._data && !this._fixedStore && (this._data.stores || []).some((x) => elHasHoursInfo(x))) {
-        const sig = this._data.stores.map((x) => (elStoreClosed(x) ? "0" : "1")).join("");
-        if (sig !== this._hoursSig) { this._hoursSig = sig; this._renderTabs(); } // 🕒 Geschäft auf-/zugegangen
+        const sig = this._data.stores.map((x) => (elStoreClosed(x) ? "0" : elStoreSoon(x) ? "2" : "1")).join("");
+        if (sig !== this._hoursSig) { this._hoursSig = sig; this._renderTabs(); } // 🕒 Geschäft auf-/zugegangen oder schließt bald
       }
       this._updateLockBtn(); // 🔒 nach 10 Minuten verschwindet der Sperr-Knopf von selbst
     }, 60000);
@@ -5817,12 +5926,19 @@ class EinkaufslisteCard extends HTMLElement {
     const t = this._activeTab;
     if (t === "all") return !this._store(item.store_id)?.not_in_all; // 🔨 z. B. Baumarkt: steht nur im eigenen Reiter
     if (t === "none") return !item.store_id;
-    return item.store_id === t || (!item.store_id && !this._store(t)?.no_any); // 🤷 „Egal wo“ gibt es in jedem Geschäft (außer dort, wo es abgeschaltet ist)
+    return this._shownIn(item, this._store(t) || { id: t });
+  }
+  // 🤷 „Egal wo“ gibt es in jedem Geschäft – außer dort, wo es abgeschaltet ist (no_any) oder der Artikel „🚫 Nicht bei …“ sagt
+  _shownIn(item, st) {
+    if (!st) return true;
+    if (item.store_id) return item.store_id === st.id;
+    return !st.no_any && !(item.not_in || []).includes(st.id);
   }
   _autoCheckDate(item) {
     const s = this._data?.settings;
     if (!s || item.checked || s.cleanup_on === false) return null; // 🧹 automatisches Aufräumen aus: kein Datum
     if (item.store_id && (s.cleanup_skip_stores || []).includes(item.store_id)) return null; // 🏬 Geschäft ist vom Aufräumen ausgenommen
+    if (item.pinned && s.pin_on) return null; // 📌 angepinnt: bleibt beim Aufräumen offen
     let d = new Date(s.next_cleanup);
     const added = new Date(Math.max(new Date(item.added_at || 0), new Date(item.out_at || 0))); // „war aus“ startet die Frist neu
     for (let i = 0; i < 60 && dayDiff(d, added) < s.min_age_days; i++) d = new Date(d.getTime() + 7 * DAY);
@@ -6140,7 +6256,7 @@ class EinkaufslisteCard extends HTMLElement {
     btnR.querySelector("ha-icon").setAttribute("icon", this._view === "recipes" ? "mdi:close" : "mdi:chef-hat");
     if (!d) { this.$("listView").hidden = true; this.$("footer").hidden = true; return; }
 
-    const open = d.items.filter((i) => !i.checked && (this._fixedStore ? i.store_id === this._fixedStore || (!i.store_id && !this._store(this._fixedStore)?.no_any) : true));
+    const open = d.items.filter((i) => !i.checked && (this._fixedStore ? this._shownIn(i, this._store(this._fixedStore) || { id: this._fixedStore }) : true));
     const cnt = this.$("count");
     cnt.hidden = open.length === 0;
     cnt.textContent = open.length;
@@ -6227,8 +6343,9 @@ class EinkaufslisteCard extends HTMLElement {
     const inAll = (i) => !this._store(i.store_id)?.not_in_all; // 🔨 Geschäfte mit „Nicht unter ‚Alle‘“ zählen dort nicht mit
     const parts = [`<button class="tab ${active === "all" ? "active" : ""}" data-act="tab" data-tab="all">Alle <span class="n">${openCount(inAll)}</span>${bubble(inAll, active === "all")}</button>`];
     for (const s of d.stores) {
-      const closed = elStoreClosed(s), here = this._someoneAt(s);
-      parts.push(`<button class="tab ${active === s.id ? "active" : ""} ${closed ? "closed" : ""} ${here ? "here" : ""}" ${closed ? 'title="Geschlossen"' : here ? 'title="Gerade ist jemand dort 📍"' : ""} style="--c:${esc(s.color)};--tc:${elTextOn(s.color)}" data-act="tab" data-tab="${s.id}">${elHasTimes(s) ? `<ha-icon class="tclock" icon="mdi:clock-outline"></ha-icon>` : `<span class="dot"></span>`}${this._lastNear === s.id ? "📍 " : ""}${esc(s.name)} <span class="n">${openCount((i) => i.store_id === s.id || (!i.store_id && !s.no_any))}</span>${bubble((i) => i.store_id === s.id || (!i.store_id && !s.no_any), active === s.id)}</button>`);
+      const closed = elStoreClosed(s), here = this._someoneAt(s), soon = !closed && elStoreSoon(s);
+      // 🕒 letzte Stunde: die Uhr im Reiter wird orange (Uhrzeit im Tooltip) · zu: grau wie immer
+      parts.push(`<button class="tab ${active === s.id ? "active" : ""} ${closed ? "closed" : ""} ${soon && elHasTimes(s) ? "soon" : ""} ${here ? "here" : ""}" ${closed ? 'title="Geschlossen"' : soon ? `title="${esc(elT("schließt"))} ${esc(soon)}"` : here ? 'title="Gerade ist jemand dort 📍"' : ""} style="--c:${esc(s.color)};--tc:${elTextOn(s.color)}" data-act="tab" data-tab="${s.id}">${elHasTimes(s) ? `<ha-icon class="tclock" icon="mdi:clock-outline"></ha-icon>` : `<span class="dot"></span>`}${this._lastNear === s.id ? "📍 " : ""}${esc(s.name)} <span class="n">${openCount((i) => this._shownIn(i, s))}</span>${bubble((i) => this._shownIn(i, s), active === s.id)}</button>`);
     }
     const none = d.items.filter((i) => !i.store_id).length;
     if (none || active === "none") {
@@ -6536,9 +6653,9 @@ class EinkaufslisteCard extends HTMLElement {
     const meta = [];
     const grp = this._grpMap?.get(item.id);
     if (!v.store) { /* 🏪 Geschäft ausgeblendet */ } else if (grp && grp.length > 1) {
-      for (const g of grp) { const st = this._store(g.store_id); meta.push(st ? `<span class="chip" style="--c:${esc(st.color)}">${esc(st.name)}</span>` : EGAL_CHIP); }
+      for (const g of grp) { const st = this._store(g.store_id); meta.push(st ? `<span class="chip" style="--c:${esc(st.color)}">${esc(st.name)}</span>` : this._egalChip(g)); }
     } else if (this._activeTab === "all" && store) meta.push(`<span class="chip" style="--c:${esc(store.color)}">${esc(store.name)}</span>`);
-    else if (!item.store_id && this._activeTab !== "none") meta.push(EGAL_CHIP); // 🤷 überall zu haben
+    else if (!item.store_id && this._activeTab !== "none") meta.push(this._egalChip(item)); // 🤷 überall zu haben
     // Reihenfolge unter dem Namen: Geschäft · Notiz · Barcode · wer eingetragen · wer abgehakt · (Rezept, Zeit)
     if (item.note && v.note) meta.push(this._noteChip(item.name, item.note));
     if (item.own_note && v.own_note) meta.push(`<span class="inote iown" title="Eigene Notiz – bleibt beim Produkt">✏️ ${esc(item.own_note)}</span>`);
@@ -6585,7 +6702,8 @@ class EinkaufslisteCard extends HTMLElement {
         // (wer abgehakt hat, steht schon oben)
       } else {
         const auto = this._autoCheckDate(item);
-        if (auto) meta.push(broomWarn(auto) // 🔴 ab einem Werktag vorher: roter Besen
+        if (item.pinned && this._data?.settings?.pin_on && this._data.settings.cleanup_on !== false) meta.push(`<span title="Angepinnt – bleibt beim Aufräumen offen">📌</span>`);
+        else if (auto) meta.push(broomWarn(auto) // 🔴 ab einem Werktag vorher: roter Besen
           ? `<span class="broomred" title="Wird bald automatisch abgehakt – am ${fmtDay(auto)}"><ha-icon icon="mdi:broom"></ha-icon> ${fmtDay(auto)}</span>`
           : `<span title="Wird an diesem Tag automatisch abgehakt">🧹 ${fmtDay(auto)}</span>`);
       }
@@ -6616,6 +6734,8 @@ class EinkaufslisteCard extends HTMLElement {
         ${b("menu-edit", "mdi:pencil-outline", "Bearbeiten")}
         ${!item.checked && this._data.stores.length > 1 ? b("menu-move", "mdi:swap-horizontal", "Verschieben") : ""}
         ${b("menu-qty", "mdi:numeric", "Menge", item.quantity ? "#1e88e5" : "")}
+        ${this._partMax(item) ? b("menu-part", "mdi:basket-check-outline", "Teilweise", "#43a047") : ""}
+        ${!item.checked && this._data.settings?.pin_on ? b("menu-pin", item.pinned ? "mdi:pin" : "mdi:pin-outline", item.pinned ? "Angepinnt ✓" : "Anpinnen", item.pinned ? "#e53935" : "") : ""}
         ${b("menu-cat", "mdi:shape-outline", "Kategorie", cat ? (cat.color || "#43a047") : "")}
         ${b("menu-photo", "mdi:camera-plus-outline", this._hasPhoto(pk) ? "Fotos" : "Foto", this._hasPhoto(pk) ? "#00897b" : "")}
         ${this._hasAppScanner() ? b("barcode-assign", "mdi:barcode-scan", codes ? "Barcode ✓" : "Barcode", codes ? "#8e24aa" : "") : ""}
@@ -6661,6 +6781,25 @@ class EinkaufslisteCard extends HTMLElement {
     if (minus) minus.disabled = !!minReached;
     const chip = this.shadowRoot.querySelector(`.item[data-id="${CSS.escape(itemId)}"] button.qty`);
     if (chip) chip.textContent = q;
+  }
+
+  // 🧺 Teilweise gekauft: geht bei ganzen Stückzahlen ab 2 („3x“, „4 Dosen“) – nicht bei Gramm/Milliliter
+  _partMax(item) {
+    if (item.checked) return 0;
+    const p = this._parseQty(this._qtyNow(item));
+    return p && Number.isInteger(p.n) && p.n >= 2 && p.n <= 24 && !/^(g|mg|ml|cl|dl|kg|l)$/i.test(p.unit) ? p.n : 0;
+  }
+
+  _partHtml(item) {
+    const max = this._partMax(item), p = this._parseQty(this._qtyNow(item));
+    if (!max) return "";
+    const chips = Array.from({ length: max - 1 }, (_, k) => k + 1).map((n) => `<button class="tab" style="--c:#43a047" data-act="part-got" data-n="${n}"><span class="dot"></span>${esc(this._fmtQty(n, p.unit))}</button>`).join("");
+    return `
+      <div class="moverow partrow" data-id="${item.id}">
+        <span class="movetxt">🧺 Wie viele hast du bekommen? (von ${esc(this._fmtQty(max, p.unit))})</span>
+        ${chips}
+        <button class="iconbtn" data-act="part-cancel" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button>
+      </div>`;
   }
 
   _qtyHtml(item) {
@@ -6800,6 +6939,7 @@ class EinkaufslisteCard extends HTMLElement {
         <input class="full" id="edAliases" value="${esc(this._itemAliases(item).join(", "))}" data-orig="${esc(this._itemAliases(item).join(", "))}" placeholder="🏷️ Spitznamen, z. B. Tempos, Tempo (mit Komma)" title="Wer so etwas eintippt, landet bei diesem Produkt">
         <select id="edStore">${this._selectOptions(d.stores, item.store_id, "🛒 Egal wo")}</select>
         <select id="edCat">${this._selectOptions(d.categories, item.category_id, "📦 Ohne Kategorie")}</select>
+        ${this._notInHtml(item)}
         <label class="full favrow" title="Mit dem ⭐-Knopf unter dem Eingabefeld kommen alle Favoriten auf einmal auf die Liste"><input type="checkbox" class="swchk" id="edFav" ${this._isFav(this._pk(item.name, item.note)) ? "checked" : ""} data-orig="${this._isFav(this._pk(item.name, item.note)) ? 1 : 0}"> ⭐ Favorit</label>
         <div class="full photorow">
           <button type="button" class="btn" data-act="photo-take" data-name="${esc(this._pk(item.name, item.note))}" ${this._photoCount(this._pk(item.name, item.note)) >= 6 ? "disabled" : ""}><ha-icon icon="mdi:camera-plus-outline"></ha-icon>${this._photoCount(this._pk(item.name, item.note)) >= 6 ? "Fotos voll (6/6)" : this._hasPhoto(this._pk(item.name, item.note)) ? "Foto dazu" : "Foto"}</button>
@@ -6811,6 +6951,32 @@ class EinkaufslisteCard extends HTMLElement {
           <button type="submit" class="btn primary"><ha-icon icon="mdi:content-save-outline"></ha-icon>Speichern</button>
         </div>
       </form>`;
+  }
+
+  // 🤷 „Egal wo“-Schild – mit „Nicht bei …“ wird aus dem 🤷 ein rotes 🚫 (Tooltip: wo er fehlt), kein extra Schild
+  _egalChip(item) {
+    const names = (item?.not_in || []).map((x) => this._store(x)?.name).filter(Boolean);
+    if (!names.length) return EGAL_CHIP;
+    return `<span class="chip notinchip" style="--c:#888" title="${EL_LANG !== "de" ? "Not at" : "Nicht bei"} ${esc(names.join(", "))}">🚫 Egal wo</span>`;
+  }
+
+  // 🚫 „Nicht bei …“: nur bei „Egal wo“ – in den abgehakten Geschäften steht der Artikel nicht im Reiter
+  _notInHtml(item) {
+    const stores = this._data?.stores || [];
+    if (!stores.length) return "";
+    const en = EL_LANG !== "de", sel = item.not_in || [];
+    return `<div class="full notinbox" id="edNotIn" ${item.store_id ? "hidden" : ""}>
+      <div class="flab"><span>🚫 ${en ? "Not at …" : "Nicht bei …"}</span><button type="button" class="finfo" data-act="finfo" aria-expanded="false" title="${en ? "What is this?" : "Was ist das?"}" aria-label="${en ? "Explanation: Not at" : "Erklärung: Nicht bei"}">i</button></div>
+      <p class="hint fhint" hidden>${en
+        ? "Items with “Anywhere” show up in every store tab. Tick the stores where this item should <b>not</b> show up – e.g. Cola everywhere except dm. The ticks are remembered for the product (even after tidying up), and checked off in a store the item stays “Anywhere”. Always one store? Then pick the store above. Only this item is affected; the store switch “Hide ‘Anywhere’ items” hides all of them."
+        : "Artikel mit „Egal wo“ stehen in jedem Geschäft-Reiter. Hak die Geschäfte an, in denen dieser Artikel <b>nicht</b> stehen soll – z. B. Cola überall außer bei dm. Die Haken bleiben beim Produkt gemerkt (auch nach dem Aufräumen), und abgehakt in einem Geschäft bleibt der Artikel „Egal wo“. Immer in ein Geschäft? Dann oben das Geschäft wählen. Das gilt nur für diesen Artikel; der Schalter am Geschäft („Egal wo“ hier nicht zeigen) blendet dagegen alle aus."}</p>
+      <div class="notinlist">${stores.map((st) => `<label class="notin" style="--c:${esc(st.color || "#888")}"><input type="checkbox" data-notin="${esc(st.id)}" ${sel.includes(st.id) ? "checked" : ""}><span class="dot"></span><span translate="no">${esc(st.name)}</span></label>`).join("")}</div>
+    </div>`;
+  }
+  _notInValue() {
+    const box = this.$("edNotIn");
+    if (!box || box.hidden) return null;
+    return [...box.querySelectorAll("input[data-notin]:checked")].map((x) => x.dataset.notin);
   }
 
   // ⭐ Favoriten
@@ -6908,6 +7074,7 @@ class EinkaufslisteCard extends HTMLElement {
       + (this._wherePick?.id === i.id ? this._whereHtml(i) : "")
       + (this._menuId === i.id ? this._menuHtml(i) : "")
       + (this._qtyEdit === i.id ? this._qtyHtml(i) : "")
+      + (this._partPick === i.id ? this._partHtml(i) : "")
       + (this._moving === i.id ? this._moveHtml(i) : "")
       + (this._catPick === i.id ? this._catPickHtml(i) : ""));
     const byName = (a, b) => a.name.localeCompare(b.name, "de");
@@ -7139,18 +7306,44 @@ ${S(".pw.l3 .pr")}{padding:1.5px 5px;gap:7px}${S(".pw.l3 .pm")}{font-size:10.5px
     return { parts, full, count: pick.length };
   }
 
-  _printPage() {
+  _printPage(start = "how") { // start "guest" = gleich der Gast-Link (nur nach geprüfter PIN)
     const d = this._data;
     const open = d.items.filter((i) => !i.checked);
-    this._openPage({ key: "print", title: "Drucken & Teilen", icon: "mdi:share-variant-outline", color: "#546e7a", build: (body) => {
+    const admin = !!this._hass?.user?.is_admin;
+    this._openPage({ key: "print", title: "Drucken & Teilen", icon: "mdi:share-variant-outline", color: "#546e7a", onClose: () => { this._guestRedraw = null; }, build: (body) => {
       let mode = null;
       const how = () => { // 📤 zuerst: drucken oder aufs Handy?
         body.innerHTML = `<div style="font:600 16px Roboto,sans-serif;margin:2px 0 6px">${esc(elT("Was möchtest du?"))}</div>
           <div class="prchoice"><button type="button" class="btn" data-how="print"><span>${esc(elT("🖨️ Drucken"))}</span></button>
-          <button type="button" class="btn" data-how="qr"><span>${esc(elT("📱 QR-Code fürs Handy"))}</span></button></div>
+          <button type="button" class="btn" data-how="qr"><span>${esc(elT("📱 QR-Code fürs Handy"))}</span></button>
+          ${admin ? `<button type="button" class="btn" data-guest><span>${esc(elT("🎫 Gast-Link"))}</span><span class="n">🔒</span></button>` : ""}</div>
           <p class="hint">${esc(elT("QR-Code: Ein anderes Handy richtet einfach die Kamera darauf und sieht die Liste als Text – ohne App, ohne Anmelden. Gut für Leute, die kein Home Assistant haben."))}</p>`;
         body.querySelectorAll("[data-how]").forEach((b) => { b.onclick = () => { mode = b.dataset.how; choose(); }; });
+        const gb = body.querySelector("[data-guest]");
+        if (gb) gb.onclick = () => gate();
         body.querySelector("[data-how]")?.focus?.({ preventScroll: true });
+      };
+      // 🎫 Gast-Link: nur Admins und NUR mit der Einstellungen-PIN (auch wenn das Zahnrad gerade offen ist, gilt die 10-Minuten-Freigabe)
+      const gate = async () => {
+        if (this._hass?.connected === false) { this._toast(elT("📴 Der Gast-Link geht nur mit Netz")); return; }
+        if (!d.settings?.pin) { this._toast(elT("🔒 Der Gast-Link geht hier nur mit Einstellungen-PIN – leg sie in ⚙️ → App & Info → Schutz (PIN) fest.")); return; }
+        if (!pinUnlocked()) {
+          const pin = await askPin(undefined, this);
+          if (pin == null) return;
+          const res = await this._ws({ type: "einkaufsliste/pin/check", pin }).catch(() => null);
+          if (!res?.ok) { this._toast(elT("🔒 Falsche PIN")); return; }
+          pinRemember();
+          this._printPage("guest"); // die PIN-Abfrage war eine eigene Seite – Drucken & Teilen gleich beim Gast-Link neu öffnen
+          return;
+        }
+        guest();
+      };
+      const guest = () => {
+        const tab = this._activeTab && !["all", "none"].includes(this._activeTab) ? this._activeTab : "";
+        body.innerHTML = `<div class="prguest">${this._guestHtml(tab)}</div>
+          <div style="margin-top:8px"><button type="button" class="btn" data-prhow>${esc(elT("◀ Zurück"))}</button></div>`;
+        body.querySelector("[data-prhow]").onclick = how;
+        this._guestRedraw = () => { if (this._page?.body === body && body.querySelector(".prguest")) guest(); else this._guestRedraw = null; };
       };
       const choose = () => {
         const rows = [{ id: "all", name: elT("Alle Geschäfte"), n: open.length, color: "#546e7a" }];
@@ -7195,7 +7388,7 @@ ${S(".pw.l3 .pr")}{padding:1.5px 5px;gap:7px}${S(".pw.l3 .pm")}{font-size:10.5px
           document.body.append(fr);
         };
       };
-      how();
+      (start === "guest" && admin && d.settings?.pin && pinUnlocked() ? guest : how)();
     } });
   }
 
@@ -7483,10 +7676,11 @@ ${S(".pw.l3 .pr")}{padding:1.5px 5px;gap:7px}${S(".pw.l3 .pm")}{font-size:10.5px
     }
     if (!s || this._view !== "list") { f.hidden = true; if (this.$("footBtns")) this.$("footBtns").hidden = true; return; }
     const shop = !!this._shopMode; // 🛒 Laden-Modus: unten nichts außer „🔊 Vorlesen“ (kein „Nächstes Aufräumen“, keine Knöpfe)
-    const skipTab = s.cleanup_on !== false && (s.cleanup_skip_stores || []).includes(this._activeTab); // 🏬 Reiter eines vom Aufräumen ausgenommenen Geschäfts: keine Aufräum-Zeile
-    f.hidden = !!this._page || shop || skipTab; // „Nächstes Aufräumen“ steht nur auf der Einkaufsliste selbst, auf keiner Seite sonst
+    const skipTab = s.cleanup_on !== false && (s.cleanup_skip_stores || []).includes(this._activeTab); // 🏬 Reiter eines vom Aufräumen ausgenommenen Geschäfts: Hinweis statt Aufräum-Zeile
+    f.hidden = !!this._page || shop; // „Nächstes Aufräumen“ steht nur auf der Einkaufsliste selbst, auf keiner Seite sonst
     const next = new Date(s.next_cleanup);
-    f.innerHTML = (s.cleanup_on === false ? `<ha-icon icon="mdi:broom"></ha-icon><span>Automatisches Aufräumen ist aus</span>`
+    f.innerHTML = skipTab ? `<ha-icon icon="mdi:broom"></ha-icon><span>🏬 Hier wird nicht automatisch aufgeräumt – alles bleibt offen</span>`
+      : (s.cleanup_on === false ? `<ha-icon icon="mdi:broom"></ha-icon><span>Automatisches Aufräumen ist aus</span>`
       : `<ha-icon icon="mdi:broom"></ha-icon><span>Nächstes Aufräumen: <b>${fmtDay(next)} ${s.cleanup_time}</b> – was ${s.min_age_days} Tage oder länger drauf steht, wird abgehakt</span>`);
     // 👁️ Ansicht + 📖 Anleitung unter der Karte (Offline-App: dort in ihrer eigenen Knopfreihe neben „Abmelden“)
     const fb = this.$("footBtns");
@@ -7664,7 +7858,7 @@ ${S(".pw.l3 .pr")}{padding:1.5px 5px;gap:7px}${S(".pw.l3 .pm")}{font-size:10.5px
           const place = `
         ${hasBr ? `<p class="hint">🏬 Dieses Geschäft hat Filialen: Adresse, Telefon und Tipps stehen bei jeder Filiale unter „Zeiten &amp; Filialen“. Die Webseite hier gilt für alle Filialen.</p>` : ""}
         ${!hasBr || e.address ? `${lab("Adresse", "Steht hier etwas, zeigt das Fenster mit den Öffnungszeiten (Reiter gedrückt halten) neben dem Namen ein ℹ️ – antippen klappt alles auf. Holst du die Zeiten bei 🌐 OpenStreetMap, kommen Adresse, Telefon und Webseite meist gleich mit (nur in leere Felder).")}<div class="srow" data-kind="stores" data-id="${e.id}"><ha-icon class="prev" icon="mdi:map-marker-outline"></ha-icon><input class="grow" data-field="address" value="${esc(e.address || "")}" placeholder="z. B. Hauptstraße 5, 48565 Steinfurt" maxlength="120"></div>` : ""}
-        ${lab("Land")}<div class="srow" data-kind="stores" data-id="${e.id}"><ha-icon class="prev" icon="mdi:earth"></ha-icon>${this._countrySel(e.country || "", 'class="grow" data-field="country"')}</div>
+        ${lab("Land", "Leer = Land aus Home Assistant. Liegt das Geschäft in einem anderen Land (z. B. Kaufland in Lindau, wenn du in Österreich wohnst), hier DE bzw. AT wählen und oben die Adresse mit Postleitzahl eintragen: Dann sucht 🏷️ Angebote für dieses Geschäft zusätzlich auf marktguru.de bzw. .at – mit der Postleitzahl aus der Adresse. Bei Filialen gilt Land und Adresse der Filiale.")}<div class="srow" data-kind="stores" data-id="${e.id}"><ha-icon class="prev" icon="mdi:earth"></ha-icon>${this._countrySel(e.country || "", 'class="grow" data-field="country"')}</div>
         ${!hasBr || e.phone ? `${lab("Telefon")}<div class="srow" data-kind="stores" data-id="${e.id}"><ha-icon class="prev" icon="mdi:phone-outline"></ha-icon><input class="grow" type="tel" inputmode="tel" data-field="phone" value="${esc(e.phone || "")}" placeholder="z. B. 02552 1234" maxlength="40"></div>` : ""}
         ${lab("Webseite")}<div class="srow" data-kind="stores" data-id="${e.id}"><ha-icon class="prev" icon="mdi:web"></ha-icon><input class="grow" type="url" inputmode="url" data-field="website" value="${esc(e.website || "")}" placeholder="https://…"></div>
         ${!hasBr || e.tips ? `${lab("Eure Tipps")}<div class="srow" data-kind="stores" data-id="${e.id}"><ha-icon class="prev" icon="mdi:lightbulb-on-outline"></ha-icon><textarea class="grow" data-field="tips" rows="2" maxlength="300" placeholder="z. B. Parkplatz hinten ist frei, Pfandautomat streikt oft">${esc(e.tips || "")}</textarea></div>` : ""}
@@ -7825,10 +8019,16 @@ ${(() => {
         <div id="yearBox" class="yearbox"><p class="hint">…</p></div>
         <div class="btnrow"><button class="btn" data-act="year-reset"><ha-icon icon="mdi:delete-sweep-outline"></ha-icon>Zähler löschen</button></div>
         <p class="hint">Es wird nur gezählt (Anzahl pro Produkt, Person, Geschäft und Monat) und bleibt in deinem Home Assistant. Der Schalter und „Zähler löschen“ gelten für alle – nur Admins dürfen sie benutzen.</p>` },
+      { key: "statistik", icon: "mdi:chart-bar", title: "Statistik", info: "meistgekauft · Geschäfte · Personen · Monate", html: () => `
+        <div class="dbtns stattabs">${[["items", "mdi:trophy-outline", "Artikel"], ["stores", "mdi:store-outline", "Geschäfte"], ["people", "mdi:account-group-outline", "Personen"], ["months", "mdi:calendar-month-outline", "Monate"]].map(([k, ic, t]) =>
+          `<button class="tab ${(this._statTab || "items") === k ? "active" : ""}" style="--c:${SET_COLORS.statistik}" data-act="stat-tab" data-tab="${k}"><ha-icon icon="${ic}"></ha-icon>${t}</button>`).join("")}</div>
+        <div id="statBox" class="yearbox"><p class="hint">…</p></div>` },
+      { key: "guest", icon: "mdi:ticket-confirmation-outline", title: "Gast-Link", info: this._data.settings?.guest ? `aktiv bis ${this._guestUntil(this._data.settings.guest.until)}` : "aus", html: () => this._guestHtml() },
       { key: "news", icon: "mdi:new-box", title: "Was ist neu", info: `Version ${EL_NEWS_VERSION}`, html: () => this._newsHtml() },
       { key: "privacy", icon: "mdi:shield-lock-outline", title: "Datenschutz", info: this._privacyOn() ? "an – keine Kamera/Fotos" : "aus", html: () => this._privacyHtml() },
       { key: "credits", icon: "mdi:hand-heart-outline", title: "Credits", info: `v${EL_VERSION} · von Mister-M`, html: () => this._creditsHtml() },
       { key: "offers", icon: "mdi:tag-outline", title: "Angebote", info: this._data.settings?.offers?.enabled ? (this._data.settings.offers.ok === false ? "⚠️ gerade nicht verfügbar" : "an · Marktguru") : "aus · inoffiziell", html: () => this._offersHtml() },
+      { key: "timernotify", icon: "mdi:timer-alert-outline", title: "Timer-Meldung", info: this._data.settings?.timer_notify?.services?.length ? `an · ${this._data.settings.timer_notify.services.length} 📱` : "aus", html: () => this._timerNotifyHtml() },
       { key: "recalls", icon: "mdi:alert-octagon-outline", title: "Rückruf-Warnung", info: this._data.settings?.recalls?.enabled ? (this._data.settings.recalls.ok === false ? "⚠️ gerade nicht erreichbar" : `an · ${(this._data.settings.recalls.hits || []).length} Treffer`) : "aus", html: () => this._recallsHtml() },
       { key: "stats", icon: "mdi:chart-donut", title: "Ressourcen", info: "Speicher, Umfang & Last", html: () => {
         this._accOpen = this._accOpen || {};
@@ -7917,6 +8117,8 @@ ${(() => {
         <div class="btnrow"><button class="btn primary" data-act="cleanup-save"><ha-icon icon="mdi:content-save-outline"></ha-icon>Speichern</button></div>
         ${(this._data.stores || []).length ? `<p class="hint"><b>Geschäfte ausnehmen:</b> Was hier an ist, wird beim automatischen Aufräumen übersprungen und bleibt offen.</p>
         ${this._data.stores.map((st) => `<button class="swline" data-act="cleanup-skip" data-id="${esc(st.id)}" aria-pressed="${(s.cleanup_skip_stores || []).includes(st.id)}"><span class="grow"><b>${esc(st.name)}</b><small>nicht aufräumen</small></span><span class="tgl"><span></span></span></button>`).join("")}` : ""}
+        ${this._swHtml("pin-toggle", !!s.pin_on, "📌 Anpinnen erlauben", "einzelne Artikel bleiben für immer stehen")}
+        <p class="hint">Ist das an, steht beim langen Drücken auf einen Artikel <b>📌 Anpinnen</b>. Angepinnte Artikel werden beim automatischen Aufräumen übersprungen und zeigen statt dem 🧹-Datum nur ein 📌. Abhaken von Hand und „Alles abhaken“ gehen weiter. Ausschalten versteckt den Knopf und lässt wieder alles aufräumen – die Pins bleiben gemerkt.</p>
         <p class="hint">Jeden ${WD_LONG[s.cleanup_weekday]} um ${s.cleanup_time} Uhr werden alle offenen Artikel abgehakt, die mindestens ${s.min_age_days} Tage auf der Liste stehen (7 = eine Woche).</p>`}`)}
         ${this._acc("clean", "hand", "mdi:broom", "#1e88e5", "Von Hand aufräumen", "Jetzt aufräumen oder alles abhaken", `
         <div class="btnrow">
@@ -7975,6 +8177,7 @@ ${(() => {
       </div>`;
     if (cur.key === "log") { this._renderLogList(); this._loadLog(); }
     if (cur.key === "year") this._loadYear();
+    if (cur.key === "statistik") this._loadStatistik();
     clearTimeout(this._catTimer); // kein automatisches Zuklappen mehr bei den Kategorien
     if (cur.key === "stats") this._loadStats();
     if (cur.key === "errors") this._loadErrors();
@@ -8017,20 +8220,21 @@ ${(() => {
   _settingsListHtml(sections) {
     const groups = [
       ["📋 Meine Liste", ["stores", "categories", "persons", "products", "recipes"]],
-      ["🎛️ Extras", ["offers", "recalls", "spend", "cards", "notetpl", "aicook", "autoshop", "mascot"]],
-      ["💾 Daten", ["transfer", "log", "cleanup"]],
+      ["🎛️ Extras", ["offers", "recalls", "timernotify", "spend", "cards", "notetpl", "aicook", "autoshop", "mascot"]],
+      ["💾 Daten", ["transfer", "log", "statistik", "cleanup"]],
       ["🩺 Gesundheit", ["check", "errors", "stats"]],
       ["👁️ Ansicht", ["listview", "labels", "theme"]],
-      ["📱 App & Info", ["app", "pin", "privacy", "year", "news", "credits"]],
+      ["📱 App & Info", ["app", "pin", "guest", "privacy", "year", "news", "credits"]],
     ];
     const kw = {
       stores: "laden markt zone standort icon eigenmarken", categories: "kategorie farbe reihenfolge", persons: "für wen namen familie",
       products: "katalog barcode foto löschen zusammenführen scan alt monate", recipes: "rezept gruppen kochen zutaten datei import txt csv json",
-      offers: "angebote marktguru preise plz", spend: "protokoll bon kasse kosten einkauf",
+      offers: "angebote marktguru preise plz land nachbarland österreich", timernotify: "timer kochtimer handy meldung benachrichtigung notify wecker", spend: "protokoll bon kasse kosten einkauf",
       notetpl: "notiz vorlagen eigene notiz bio laktose chips", aicook: "ki kochen assistent chatgpt openai gemini ollama rezept idee",
       autoshop: "laden-modus automatisch zone", mascot: "maskottchen wagen gesicht", transfer: "import export sicherung backup mail e-mail alexa todo csv bring",
       log: "verlauf wer wann", listview: "ansicht anzeigen ausblenden einblenden menge notiz foto stern datum wer liste", cleanup: "aufräumen abhaken", check: "alles ok reparieren gesundheit ampel sensor", errors: "fehler protokoll kopieren",
-      year: "jahr rückblick statistik top produkte lieblingsgeschäft monat zählen", stats: "ressourcen speicher verbrauch last auslastung", app: "offline app startbildschirm", theme: "hell dunkel", labels: "beschriftungen text icons beschriften", pin: "pin schutz sperre", privacy: "datenschutz daten internet open food facts marktguru ocr kamera foto scanner sperre", news: "neu version", credits: "über danke lizenz github",
+      year: "jahr rückblick statistik top produkte lieblingsgeschäft monat zählen", statistik: "statistik zahlen meistgekauft geschäft person monat euro diagramm",
+      guest: "gast link nachbar babysitter teilen fremde ohne konto pin ablauf", stats: "ressourcen speicher verbrauch last auslastung", app: "offline app startbildschirm", theme: "hell dunkel", labels: "beschriftungen text icons beschriften", pin: "pin schutz sperre", privacy: "datenschutz daten internet open food facts marktguru ocr kamera foto scanner sperre", news: "neu version", credits: "über danke lizenz github",
     };
     const q = (this._setQ || "").trim().toLowerCase();
     const byKey = Object.fromEntries(sections.map((x) => [x.key, x]));
@@ -9203,6 +9407,80 @@ ${(() => {
     if (box && r) box.innerHTML = this._yearHtml(r);
   }
 
+  // 📊 Statistik: Zahlen holen und je nach Reiter als Balken zeigen (Bausteine wie beim Jahresrückblick)
+  async _loadStatistik() {
+    let r = null;
+    try { r = await this._ws({ type: "einkaufsliste/stats/summary" }); } catch (_) { /* Meldung kam schon */ }
+    if (this._view !== "settings" || this._setSec !== "statistik") return;
+    this._statData = r;
+    const box = this.$("statBox");
+    if (box && r) box.innerHTML = this._statHtml(r);
+  }
+
+  _statHtml(r) {
+    const en = EL_LANG !== "de";
+    const T = (de, e) => (en ? e : de);
+    const MS = en ? ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] : ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+    const eur = (v) => `${Number(v || 0).toLocaleString(en ? "en-GB" : "de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    const bar = (rows, unit = "×") => { const max = Math.max(1, ...rows.map((x) => x[1])); return rows.map(([nm, n, extra]) => `<div class="yrrow"><span class="nm">${esc(nm)}${extra ? `<small style="display:block;opacity:.7">${extra}</small>` : ""}</span><span class="bar"><i style="width:${Math.round((n / max) * 100)}%"></i></span><span class="n">${n}${unit}</span></div>`).join(""); };
+    const none = (t) => `<p class="hint">${t}</p>`;
+    const tab = this._statTab || "items";
+    const off = !r.on ? none(T("🎁 Der Jahresrückblick ist aus – es wird gerade nichts gezählt (⚙️ → App & Info → Euer Jahr in Einkäufen).", "🎁 The year in review is off – nothing is counted right now (⚙️ → App & info → Your year in shopping).")) : "";
+    const empty = none(T("Noch nichts gezählt – schau in ein paar Einkäufen wieder rein! 📊", "Nothing counted yet – check back after a few shopping trips! 📊"));
+    let body = "";
+    if (tab === "items") body = r.items.length ? `<h4>🏆 ${T("Meistgekauft", "Bought most")}</h4>${bar(r.items)}` : empty;
+    if (tab === "stores") body = r.stores.length ? `<h4>🏪 ${T("Einkäufe je Geschäft", "Purchases per store")}</h4>${bar(r.stores.map((x) => [x.name, x.n, x.eur != null ? `${eur(x.eur)} (${x.trips || 0} ${T("Einkäufe", "trips")})` : ""]), "×")}${r.spend ? "" : none(T("💡 Mit dem 🧾 Einkaufs-Protokoll (⚙️ → Extras) stehen hier auch die Beträge.", "💡 With the 🧾 purchase log (⚙️ → Extras) the amounts show here too."))}` : empty;
+    if (tab === "people") body = r.buyers.length || r.adders.length
+      ? `${r.buyers.length ? `<h4>🛒 ${T("Wer kauft ein (hakt ab)?", "Who shops (checks off)?")}</h4>${bar(r.buyers)}` : ""}${r.adders.length ? `<h4>✍️ ${T("Wer trägt ein?", "Who adds?")}</h4>${bar(r.adders)}` : ""}` : empty;
+    if (tab === "months") {
+      const max = Math.max(1, ...r.months.map((x) => x.n));
+      body = r.months.some((x) => x.n || x.eur) ? `<h4>📅 ${T("Gekaufte Artikel je Monat", "Items bought per month")}</h4><div class="yrmonths">${r.months.map((x, i) => `<span class="${i === r.months.length - 1 ? "best" : ""}" title="${esc(MS[x.m - 1])} ${x.y}: ${x.n}${r.spend ? ` · ${eur(x.eur)}` : ""}"><i style="height:${Math.round((x.n / max) * 100)}%"></i>${MS[x.m - 1]}</span>`).join("")}</div>
+        ${r.spend && r.months.some((x) => x.eur) ? `<h4>🧾 ${T("Ausgegeben je Monat", "Spent per month")}</h4>${bar(r.months.filter((x) => x.eur).reverse().map((x) => [`${MS[x.m - 1]} ${x.y}`, x.eur]), "").replace(/(\d+(?:\.\d+)?)<\/span><\/div>/g, (m0, v) => `${eur(v)}</span></div>`)}` : ""}` : empty;
+    }
+    const since = r.since ? new Date(r.since + "T12:00:00").toLocaleDateString(en ? "en-GB" : "de-DE") : "–";
+    return `${off}${body}<p class="hint">${T("Dieses und letztes Jahr · gezählt seit", "This and last year · counting since")} ${since}</p>`;
+  }
+
+  // 🎫 Gast-Link: Ablaufzeit kurz („Do 18:30“)
+  _guestUntil(iso) {
+    const d = iso ? new Date(iso) : null;
+    if (!d || isNaN(d)) return "–";
+    return `${elT(WD_SHORT[pyWd(d)])} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+
+  _guestHtml(pick = "") { // pick = vorausgewähltes Geschäft (aus „Drucken & Teilen“)
+    const g = this._data.settings?.guest;
+    const admin = !!this._hass?.user?.is_admin;
+    const fresh = this._guestNew && g && this._guestNew.until === g.until ? this._guestNew : null;
+    const store = g?.store_id ? this._store(g.store_id) : null;
+    const stores = this._data.stores || [];
+    return `
+      <p class="hint">🎫 Ein Link für Nachbarn oder Babysitter – ohne Home-Assistant-Konto. Der Gast sieht nur die offenen Artikel (Name, Menge, Notiz) und kann abhaken. Sonst nichts: keine Einstellungen, keine Rezepte, kein Home Assistant.</p>
+      ${g ? `<p><b>🟢 Aktiv</b> <span>· gilt bis</span> ${esc(this._guestUntil(g.until))}${store ? ` · ${esc(store.name)}` : ` · <span>alle Geschäfte</span>`}${g.by ? ` · <span>von</span> <span translate="no">${esc(g.by)}</span>` : ""}</p>` : `<p><b>⚪ Aus</b> <span>– gerade gibt es keinen Gast-Link.</span></p>`}
+      ${fresh ? `
+      <div class="srow"><ha-icon class="prev" icon="mdi:link-variant"></ha-icon><input class="grow" id="guestUrl" readonly value="${esc(fresh.url)}" translate="no"></div>
+      <div class="btnrow">
+        <button class="btn primary" data-act="guest-copy"><ha-icon icon="mdi:content-copy"></ha-icon>Link kopieren</button>
+        ${navigator.share ? `<button class="btn" data-act="guest-share"><ha-icon icon="mdi:share-variant"></ha-icon>Teilen</button>` : ""}
+      </div>
+      <p class="hint">⚠️ Der Link wird nur jetzt angezeigt. Die PIN sagst du dem Gast am besten getrennt (anrufen oder eigene Nachricht).</p>` : ""}
+      ${admin ? `
+      ${g ? `<div class="btnrow"><button class="btn" data-act="guest-revoke" style="--c:#e53935"><ha-icon icon="mdi:lock-outline"></ha-icon>Jetzt sperren</button></div>` : ""}
+      <h4>${g ? "Neuen Link erstellen (der alte gilt dann nicht mehr)" : "Gast-Link erstellen"}</h4>
+      <div class="srow"><ha-icon class="prev" icon="mdi:dialpad"></ha-icon><input class="grow" id="guestPin" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="PIN für den Gast (4–8 Ziffern)"></div>
+      <div class="srow"><ha-icon class="prev" icon="mdi:timer-outline"></ha-icon><select class="grow" id="guestHours" title="Wie lange gilt der Link?">${[2, 6, 12, 24].map((h) => `<option value="${h}" ${h === 24 ? "selected" : ""}>${h} Stunden</option>`).join("")}</select></div>
+      <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="guestStore" title="Welche Artikel sieht der Gast?"><option value="">Alle Geschäfte</option>${stores.map((s) => `<option value="${esc(s.id)}" ${s.id === pick ? "selected" : ""}>${esc(s.name)} + Egal wo</option>`).join("")}</select></div>
+      <div class="btnrow"><button class="btn primary" data-act="guest-create"><ha-icon icon="mdi:ticket-confirmation-outline"></ha-icon>Gast-Link erstellen</button></div>
+      <p class="hint">🛡️ Höchstens 24 Stunden · nach 5 falschen PINs 15 Minuten Pause, nach 25 gesperrt · falsche Versuche zählen wie eine falsche Anmeldung bei Home Assistant. Von unterwegs braucht der Gast deine externe Adresse (z. B. Nabu Casa).</p>`
+      : `<p class="hint">🔒 Erstellen oder sperren kann das nur ein Admin.</p>`}`;
+  }
+
+  _guestBase() {
+    const app = this._data.settings?.app_url;
+    try { if (app) return new URL(app, location.href).origin; } catch (_) { /* weiter */ }
+    return location.origin;
+  }
+
   _yearHtml(r) {
     const en = EL_LANG !== "de";
     const T = (de, e) => (en ? e : de);
@@ -9602,6 +9880,7 @@ ${(() => {
   _recipeMatches(q) {
     const recipes = [...(this._data.recipes || [])].sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
     q = (q || "").trim().toLowerCase();
+    if (!q && this._recStarSort()) recipes.sort((a, b) => (b.stars || 0) - (a.stars || 0)); // ⭐ Familienliebling zuerst (bei gleich vielen Sternen nach Name)
     if (!q) return recipes.map((r) => ({ r, sc: 0 }));
     const starts = (low) => low.startsWith(q) || low.split(/[\s\-–,/()]+/).some((w) => w.startsWith(q));
     const nicks = (this._data.aliases || []).filter((a) => starts(String(a.alias || "").toLowerCase()));
@@ -9636,13 +9915,34 @@ ${(() => {
     return out.sort((a, b) => a.sc - b.sc);
   }
 
+  // ⭐ Rezept-Sterne: Sortierung „Familienliebling“ merkt sich jedes Gerät selbst
+  _recStarSort() {
+    if (this._recStars === undefined) { try { this._recStars = localStorage.getItem("einkaufsliste_recstars") === "1"; } catch (_) { this._recStars = false; } }
+    return this._recStars;
+  }
+
+  _starsTag(r) { // ⭐ Durchschnitt aller Bewertungen: ★★★★☆ + „4,3“, im Tooltip wer wie viele Sterne gab
+    if (!r.stars) return "";
+    const full = Math.round(r.stars), avg = this._starsAvg(r);
+    const who = Object.values(r.ratings || {}).filter((x) => x.n).map((x) => `${x.n} ${x.s}★`).join(", ");
+    const t = `Ø ${avg} von 5 Sternen${r.stars_n > 1 ? ` · ${r.stars_n} Bewertungen` : ""}${who ? ` (${who})` : ""}`;
+    return ` <span class="rstars" title="${esc(t)}" aria-label="${esc(t)}">${"★".repeat(full)}<span class="off">${"★".repeat(5 - full)}</span>${r.stars_n > 1 || r.stars !== full ? ` <small>${avg}</small>` : ""}</span>`;
+  }
+
+  _starsAvg(r) { return (r.stars || 0).toLocaleString(EL_LANG === "de" ? "de-DE" : "en-GB", { maximumFractionDigits: 1 }); }
+
+  _myStars(r) { // ⭐ meine eigenen Sterne (pro HA-Benutzer)
+    const me = this._hass?.user?.id;
+    return (me && r.ratings?.[me]?.s) || 0;
+  }
+
   _markHit(name, q) {
     const at = q ? name.toLowerCase().indexOf(q) : -1;
     return at < 0 ? esc(name) : esc(name.slice(0, at)) + "<mark>" + esc(name.slice(at, at + q.length)) + "</mark>" + esc(name.slice(at + q.length));
   }
 
   _recipeSearchHtml(id) {
-    return `<div class="srow rsearch"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="${id}" type="search" placeholder="Rezept oder Zutat suchen, z. B. Nudeln" value="${esc(this._recipeFilter || "")}" autocomplete="off"><button class="iconbtn rclear" data-act="recipe-search-clear" title="Suche löschen" aria-label="Suche löschen" ${this._recipeFilter ? "" : "hidden"}><ha-icon icon="mdi:eraser"></ha-icon></button></div>${elIsPc() ? `<p class="hint">⌨️ Klick = markieren · Doppelklick oder Enter = öffnen · ↑↓ = blättern · Esc = zurück</p>` : ""}`;
+    return `<div class="srow rsearch"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="${id}" type="search" placeholder="Rezept oder Zutat suchen, z. B. Nudeln" value="${esc(this._recipeFilter || "")}" autocomplete="off"><button class="iconbtn rstarsort${this._recStarSort() ? " on" : ""}" data-act="recipe-star-sort" title="Sortieren: Familienliebling zuerst (⭐ Sterne)" aria-label="Sortieren: Familienliebling zuerst" aria-pressed="${this._recStarSort()}"><ha-icon icon="${this._recStarSort() ? "mdi:star" : "mdi:star-outline"}"></ha-icon></button><button class="iconbtn rclear" data-act="recipe-search-clear" title="Suche löschen" aria-label="Suche löschen" ${this._recipeFilter ? "" : "hidden"}><ha-icon icon="mdi:eraser"></ha-icon></button></div>${elIsPc() ? `<p class="hint">⌨️ Klick = markieren · Doppelklick oder Enter = öffnen · ↑↓ = blättern · Esc = zurück</p>` : ""}`;
   }
 
   _renderRecipes() {
@@ -9839,7 +10139,7 @@ ${(() => {
       return `
         <div class="recipe rv ${this._knMarked === r.id ? "marked" : ""}${this._cookNowFor(r) ? " cooking" : ""}" tabindex="0" data-id="${r.id}" style="--rc:${esc(this._rgroup(r.group)?.color || SET_COLORS.recipes)}">
           <ha-icon icon="${esc(this._recipeIcon(r))}"></ha-icon>
-          <div class="rname" lang="de"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)} ${this._recipeAiMark(r)}${planOn && pl[2] ? ` <span class="plantag" title="${pl[1]}">${pl[2]}</span>` : ""}</b>${sub ? `<small>${sub}</small>` : ""}${this._cookNowHtml(r)}${r.cook_note ? `<small class="rnote">📝 ${esc(r.cook_note)}</small>` : ""}${elNutLine(r.nutrition) ? `<small class="rnut" title="${esc(elT("Nährwerte pro Portion"))}">🧮 ${esc(elNutLine(r.nutrition))}</small>` : ""}</div>
+          <div class="rname" lang="de"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._starsTag(r)}${this._servTag(r)} ${this._recipeAiMark(r)}${planOn && pl[2] ? ` <span class="plantag" title="${pl[1]}">${pl[2]}</span>` : ""}</b>${sub ? `<small>${sub}</small>` : ""}${this._cookNowHtml(r)}${r.cook_note ? `<small class="rnote">📝 ${esc(r.cook_note)}</small>` : ""}${elNutLine(r.nutrition) ? `<small class="rnut" title="${esc(elT("Nährwerte pro Portion"))}">🧮 ${esc(elNutLine(r.nutrition))}</small>` : ""}</div>
         </div>
         <div class="rtools" data-id="${r.id}">
           <button class="btn" data-act="recipe-view" title="Ansehen – das ganze Rezept auf einer Seite, so wie es gedruckt wird"><ha-icon icon="mdi:file-document-outline"></ha-icon><span class="lbl">Ansehen</span></button>
@@ -9850,6 +10150,7 @@ ${(() => {
           ${(r.steps || "").trim() ? `<button class="btn" data-act="recipe-cook" title="Kochen"><ha-icon icon="mdi:fire"></ha-icon><span class="lbl">Kochen</span></button>` : ""}
           ${r.source ? `<button class="btn" data-act="recipe-source" title="Original-Rezept im Browser öffnen"><ha-icon icon="mdi:open-in-new"></ha-icon><span class="lbl">Original öffnen</span></button>` : ""}
           <button class="btn" data-act="recipe-share" title="Drucken &amp; Teilen"><ha-icon icon="mdi:file-send-outline"></ha-icon><span class="lbl">Drucken &amp; Teilen</span></button>
+          ${(() => { const mine = this._myStars(r); return `<div class="rstarset" role="group" aria-label="Meine Sterne">${[1, 2, 3, 4, 5].map((n) => `<button class="iconbtn${n <= mine ? " on" : ""}" data-act="recipe-star" data-n="${n}" title="${n} ${n === 1 ? "Stern" : "Sterne"}${n === mine ? " – nochmal tippen = weg" : ""}" aria-label="${n} ${n === 1 ? "Stern" : "Sterne"}"><ha-icon icon="${n <= mine ? "mdi:star" : "mdi:star-outline"}"></ha-icon></button>`).join("")}${mine ? (r.stars_n > 1 ? `<span class="hint">Ø ${esc(this._starsAvg(r))} · ${r.stars_n} <span>Bewertungen</span></span>` : "") : `<span class="hint">Bewerte das letzte Essen</span>`}</div>`; })()}
         </div>${this._pickRecipe === r.id ? this._pickHtml(r) : ""}`;
     };
     // 📅 Essensplan: oben „Diese Woche“, dann „Wünsche“, dann der Rest (nur wenn überhaupt etwas geplant ist)
@@ -9879,7 +10180,7 @@ ${(() => {
     box.innerHTML = (q && !found.length ? `<p class="hint">Nix gefunden für „${esc(q)}“ 🕵️</p>` : "") + found.map(({ r, via, fuzzy }) => `
       <div class="recipe ${this._knMarked === r.id ? "marked" : ""}" tabindex="0" data-id="${r.id}" style="--rc:${esc(this._rgroup(r.group)?.color || SET_COLORS.recipes)}">
         <ha-icon icon="${esc(this._recipeIcon(r))}"></ha-icon>
-        <div class="rname" lang="de"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)} ${this._recipeAiMark(r)}${this._recipePhotoBtn(r)}</b><small>${
+        <div class="rname" lang="de"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._starsTag(r)}${this._servTag(r)} ${this._recipeAiMark(r)}${this._recipePhotoBtn(r)}</b><small>${
           fuzzy ? "🤓 Meintest du das? · " : via ? `🥕 enthält ${this._markHit(via, q)} · ` : ""}${this._rgroup(r.group) ? esc(this._rgroup(r.group).name) + " · " : "ohne Gruppe · "}${r.items.length} Zutaten${r.steps ? " · 📖 Anleitung" : " · ohne Anleitung"}${(r.heat || []).length ? " · 🔥 Backofen & Co." : ""}</small></div>
         <button class="iconbtn" data-act="recipe-edit" title="Bearbeiten"><ha-icon icon="mdi:pencil-outline"></ha-icon></button>
       </div>`).join("");
@@ -11163,7 +11464,10 @@ ${(() => {
       <div style="font-size:.85em;opacity:.65;text-align:center">${esc(elT("Fotos aus Open Food Facts & Co. (frei nutzbar). Das Foto kommt dazu – deine eigenen bleiben."))}</div>
       <div data-btns style="display:flex;justify-content:flex-end"></div></div>`;
     const inp = ov.querySelector("[data-q]"), msg = ov.querySelector("[data-msg]"), res = ov.querySelector("[data-res]");
-    inp.value = this._pkLabel(target.name).replace(/\s*·\s*/g, " ");
+    // 🔎 Suchfeld startet mit dem Namen allein; die Notiz (z. B. Marke) probiert Home Assistant danach zusätzlich
+    const [pkName, ...pkNote] = String(target.name || "").split("|");
+    inp.value = this._pkLabel(pkName).trim();
+    const pkExtra = pkNote.join(" ").trim();
     const go = ovIconButton("mdi:magnify", elT("Suchen"));
     ov.querySelector("[data-go]").append(go);
     const cancel = ovButton("Abbrechen");
@@ -11190,7 +11494,7 @@ ${(() => {
       res.innerHTML = "";
       msg.textContent = elT("🔎 Suche läuft …");
       let out;
-      try { out = await this._ws({ type: "einkaufsliste/photo/search", query: q }); } catch (_) { if (open && my === run) msg.textContent = ""; return; }
+      try { out = await this._ws({ type: "einkaufsliste/photo/search", query: q, ...(pkExtra ? { extra: pkExtra } : {}) }); } catch (_) { if (open && my === run) msg.textContent = ""; return; }
       if (!open || my !== run) return; // inzwischen zu oder neu gesucht
       const list = out?.results || [];
       if (!list.length) {
@@ -13535,10 +13839,12 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
     const status = !on ? "" : o.ok === false ? `<p><b>⚠️ Angebote gerade nicht verfügbar.</b> <span>${esc(o.error || "")}</span></p>`
       : last ? `<p><b>✅ An</b> <span>· zuletzt</span> ${WD_SHORT[pyWd(last)]}. ${String(last.getHours()).padStart(2, "0")}:${String(last.getMinutes()).padStart(2, "0")} <span>·</span> ${o.count || 0} <span>Angebote gefunden</span></p>`
       : `<p><b>✅ An</b> <span>– die ersten Angebote kommen in ein paar Minuten.</span></p>`;
+    const foreign = on && o.foreign?.length ? `<p><b>🌍 Auch im Nachbarland:</b> <span translate="no">${esc(o.foreign.join(" · "))}</span></p>` : "";
     return `
       <p class="hint"><b>🏷️ Angebote aus den Prospekten</b>: Steht etwas von deiner Liste gerade im Angebot, bekommt der Artikel rechts in der Zeile einen 🏷️-Knopf. Lange drücken → <b>Angebote</b> zeigt Geschäft, Preis und wie lange es gilt. Gibt es nichts Genaues, aber Ähnliches (z. B. „Milch“ für „H-Milch“), steht stattdessen ein blaues <b>🔀</b> – höchstens 4 Treffer.</p>
       <p class="hint warnbox">⚠️ <b>Inoffiziell.</b> Die Angebote kommen von Marktguru – ohne Absprache mit Marktguru, so wie die Webseite sie auch jedem Browser zeigt. Das kann <b>jederzeit ohne Vorwarnung aufhören</b> zu funktionieren. Die Einkaufsliste selbst läuft dann ganz normal weiter. Nachgeschaut werden nur die Namen offener Artikel und deine Postleitzahl – sonst nichts.</p>
-      ${status}
+      ${status}${foreign}
+      <p class="hint">🌍 Geschäft im Nachbarland? (z. B. Kaufland in Lindau, wenn du in Österreich wohnst) Beim Geschäft bzw. der Filiale unter 🌍 Land DE oder AT wählen und unter 📍 Adresse die Adresse mit Postleitzahl eintragen. Dann sucht die Liste für dieses Geschäft zusätzlich im anderen Land – mit der Postleitzahl aus der Adresse. Alle anderen Geschäfte bleiben bei deiner Postleitzahl hier.</p>
       ${admin ? `
       <div class="srow"><ha-icon class="prev" icon="mdi:map-marker-outline"></ha-icon><input class="grow" id="offZip" inputmode="numeric" maxlength="5" placeholder="Postleitzahl, z. B. 48565" value="${esc(o?.zip || "")}"></div>
       <div class="pestores">🏪 <span>Nur diese Geschäfte (leer = alle):</span> ${this._data.stores.map((st) =>
@@ -13549,6 +13855,29 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
         <button class="btn primary" data-act="${on ? "offers-save" : "offers-on"}"><ha-icon icon="mdi:tag-outline"></ha-icon>${on ? "Speichern" : "Einschalten"}</button>
         ${on ? `<button class="btn" data-act="offers-refresh"><ha-icon icon="mdi:refresh"></ha-icon>Jetzt nachschauen</button><button class="btn" data-act="offers-off"><ha-icon icon="mdi:close"></ha-icon>Ausschalten</button>` : ""}
       </div>` : `<p class="hint">🔒 Einschalten oder ändern kann das nur ein Admin.</p>`}`;
+  }
+
+  // ⏰ Kochtimer fertig → Handy-Meldung (ohne eigene Automation). Läuft in Home Assistant, auch wenn keine Karte offen ist.
+  _timerNotifyHtml() {
+    const t = this._data.settings?.timer_notify;
+    const chosen = t?.services || [];
+    const admin = !!this._hass?.user?.is_admin;
+    const all = Object.keys(this._hass?.services?.notify || {}).filter((n) => n !== "persistent_notification" && n !== "send_message");
+    for (const c of chosen) if (!all.includes(c)) all.push(c); // gespeichert, aber gerade nicht da (Handy weg?) – trotzdem zeigen
+    all.sort((a, b) => (b.startsWith("mobile_app_") - a.startsWith("mobile_app_")) || a.localeCompare(b));
+    const nice = (n) => n.replace(/^mobile_app_/, "📱 ").replace(/_/g, " ");
+    return `
+      <p class="hint">⏰ Timer fertig – Meldung aufs Handy. Die Kochtimer laufen in Home Assistant. Ist die Zeit um, kommt eine Meldung aufs Handy – auch wenn keine Karte offen ist. Standard: aus.</p>
+      ${chosen.length ? `<p><b>✅ An</b> <span>· meldet an</span> <span translate="no">${esc(chosen.map(nice).join(", "))}</span></p>` : ""}
+      ${admin ? (all.length ? `
+      <div class="pestores">🔔 <span>Melden an:</span> ${all.map((n) =>
+        `<label class="stck" style="--c:#00897b"><input type="checkbox" class="tnsvc" value="${esc(n)}" ${chosen.includes(n) ? "checked" : ""}><span translate="no" style="white-space:nowrap">${esc(nice(n))}</span></label>`).join("")}</div>
+      ${chosen.length ? this._swHtml("tn-starter", !!t?.starter, "📱 Nur an den, der den Timer gestartet hat", "sonst an alle angekreuzten Handys") : ""}
+      <div class="btnrow">
+        <button class="btn primary" data-act="tn-save"><ha-icon icon="mdi:content-save-outline"></ha-icon>Speichern</button>
+        ${chosen.length ? `<button class="btn" data-act="tn-off"><ha-icon icon="mdi:close"></ha-icon>Ausschalten</button>` : ""}
+      </div>` : `<p class="hint">🤷 In Home Assistant gibt es noch keinen Melde-Dienst. Installiere die Home-Assistant-App auf dem Handy und melde dich an – dann steht es hier als 📱.</p>`)
+      : `<p class="hint">🔒 Einschalten oder ändern kann das nur ein Admin.</p>`}`;
   }
 
   // ⚠️ Rückruf-Warnung: offizielle Warnungen (lebensmittelwarnung.de) gegen die Einkäufe der letzten 30 Tage
@@ -14266,7 +14595,7 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
         if (!open.length && !res.note) open = this._data.items.filter((i) => !i.checked && i.name.toLowerCase() === res.name.toLowerCase());
         let pool = open;
         if (manual && store) { // Reiter: dieses Geschäft und „Egal wo“
-          pool = open.filter((i) => (!i.store_id && !store.no_any) || i.store_id === store.id);
+          pool = open.filter((i) => this._shownIn(i, store));
           if (open.length && !pool.length) return `ℹ️ ${res.name} steht nur bei einem anderen Geschäft auf der Liste`;
         } else if (manual && open.length > 1 && new Set(open.map((i) => i.store_id || "")).size > 1) {
           return `❓ ${res.name} steht bei mehreren Geschäften – bitte im Reiter des Geschäfts scannen`; // nicht auf Verdacht abhaken
@@ -14435,7 +14764,8 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
     // 📏 Nur eine Zahl? Selbst gewählte Einheit dran – sonst nimmt Home Assistant die gemerkte Einheit (oder x)
     if (msg.quantity && isBareQty(msg.quantity) && this._qtyUnit) msg.quantity = qtyFmt(msg.quantity, this._qtyUnit);
     // 🤔 Wirklich so viel? (nur bei ungewöhnlich großen Mengen)
-    if (msg.quantity && qtyOdd(msg.name, msg.quantity) && !await elConfirm(`Wirklich ${msg.quantity} „${msg.name}“?`)) {
+    const hist = this._data?.history?.find((x) => x.name.toLowerCase() === String(msg.name).toLowerCase()) || null;
+    if (msg.quantity && qtyOdd(msg.name, msg.quantity, hist) && !await elConfirm(`Wirklich ${msg.quantity} „${msg.name}“?${hist?.qty ? `\n\nZuletzt waren es ${hist.qty}.` : ""}`, { title: elT("Mengen-Check 🤔"), yes: elT("Ja, stimmt"), no: elT("Nein, ändern") })) {
       this.$("inQty")?.focus?.();
       return;
     }
@@ -14822,6 +15152,13 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
           .catch(() => {});
         break;
       }
+      case "pin-toggle": { // 📌 Anpinnen für alle erlauben / verbieten
+        const on = !this._data.settings?.pin_on;
+        this._ws({ type: "einkaufsliste/cleanup/settings", pin_on: on })
+          .then(() => { this._toast(on ? "📌 Anpinnen ist an – lange auf einen Artikel drücken" : "📌 Anpinnen ist aus – alles wird wieder normal aufgeräumt"); setTimeout(() => this._renderSettings(), 150); })
+          .catch(() => {});
+        break;
+      }
       case "cleanup-skip": { // 🏬 Geschäft vom automatischen Aufräumen ausnehmen / wieder aufnehmen
         const cur = new Set(this._data.settings?.cleanup_skip_stores || []);
         const id = el.dataset.id;
@@ -15093,6 +15430,66 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
         this._renderList();
         break;
       }
+      case "stat-tab": // 📊 Statistik-Reiter wechseln (ohne neu zu laden)
+        this._statTab = el.dataset.tab;
+        this.shadowRoot.querySelectorAll('.stattabs [data-act="stat-tab"]').forEach((b) => b.classList.toggle("active", b === el));
+        if (this._statData && this.$("statBox")) this.$("statBox").innerHTML = this._statHtml(this._statData);
+        break;
+      case "guest-create": { // 🎫 Gast-Link erstellen (nur Admins)
+        const pin = (this.$("guestPin")?.value || "").trim();
+        if (!/^\d{4,8}$/.test(pin)) { this._toast("Die Gast-PIN muss aus 4 bis 8 Ziffern bestehen."); this.$("guestPin")?.focus(); break; }
+        if (this._data.settings?.guest && !await elConfirm("Es gibt schon einen Gast-Link. Ein neuer ersetzt ihn – der alte gilt dann sofort nicht mehr.", { danger: false })) break;
+        const hours = Number(this.$("guestHours")?.value || 24), store = this.$("guestStore")?.value || "";
+        this._ws({ type: "einkaufsliste/guest/create", pin, hours, ...(store ? { store_id: store } : {}) })
+          .then((res) => {
+            this._guestNew = { url: this._guestBase() + res.path, until: res.until };
+            if (this._data.settings) this._data.settings.guest = { until: res.until, store_id: res.store_id, by: res.by, created: res.created };
+            this._toast("🎫 Gast-Link erstellt – jetzt kopieren oder teilen");
+            if (this._guestRedraw) this._guestRedraw(); else this._renderSettings();
+          }).catch(() => {});
+        break;
+      }
+      case "guest-copy":
+        if (this._guestNew) elCopy(this._guestNew.url, this.$("guestUrl")).then(() => this._toast("📋 Link kopiert – PIN getrennt schicken"));
+        break;
+      case "guest-share":
+        if (this._guestNew && navigator.share) navigator.share({ title: elT("Einkaufsliste"), url: this._guestNew.url }).catch(() => {});
+        break;
+      case "guest-revoke":
+        if (!await elConfirm("Gast-Link jetzt sperren? Wer ihn hat, kommt sofort nicht mehr an die Liste.", { danger: false })) break;
+        this._ws({ type: "einkaufsliste/guest/revoke" })
+          .then(() => { this._guestNew = null; if (this._data.settings) this._data.settings.guest = null; this._toast("🔒 Gast-Link gesperrt"); if (this._guestRedraw) this._guestRedraw(); else this._renderSettings(); }).catch(() => {});
+        break;
+      case "menu-pin": { // 📌 Anpinnen: bleibt beim automatischen Aufräumen offen
+        const item = this._data.items.find((i) => i.id === el.dataset.id);
+        this._menuId = null;
+        if (!item) { this._renderList(); break; }
+        const pinned = !item.pinned;
+        this._ws({ type: "einkaufsliste/item/pin", item_id: item.id, pinned })
+          .then(() => this._toast(pinned ? "📌 Angepinnt – bleibt beim Aufräumen stehen" : "📌 Nicht mehr angepinnt – wird wieder normal aufgeräumt")).catch(() => {});
+        this._renderList();
+        break;
+      }
+      case "menu-part": // 🧺 „2 von 3 bekommen“
+        this._menuId = null;
+        this._partPick = el.dataset.id;
+        this._renderList();
+        break;
+      case "part-cancel":
+        this._partPick = null;
+        this._renderList();
+        break;
+      case "part-got": {
+        const item = this._data.items.find((i) => i.id === el.closest(".partrow")?.dataset.id);
+        this._partPick = null;
+        if (!item) { this._renderList(); break; }
+        const p = this._parseQty(this._qtyNow(item)), got = Number(el.dataset.n);
+        const atStore = !item.store_id && this._activeTab && !["all", "none"].includes(this._activeTab) ? this._activeTab : null;
+        this._ws({ type: "einkaufsliste/item/partial", item_id: item.id, got, ...(atStore ? { store_id: atStore } : {}) })
+          .then(() => this._toast(`🧺 ${this._fmtQty(got, p.unit)} gekauft – ${this._fmtQty(p.n - got, p.unit)} bleibt offen`)).catch(() => {});
+        this._renderList();
+        break;
+      }
       case "menu-qty":
         this._menuId = null;
         this._qtyEdit = el.dataset.id;
@@ -15116,6 +15513,17 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
         const hours = Number(this.$("offHours")?.value || 6);
         this._ws({ type: "einkaufsliste/offers/set", enabled: true, zip, stores, hours })
           .then(() => { this._toast("🏷️ Angebote sind an – die ersten kommen in ein paar Minuten"); setTimeout(() => this._renderSettings(), 150); })
+          .catch(() => {});
+        break;
+      }
+      case "tn-save":
+      case "tn-off":
+      case "tn-starter": {
+        const cur = this._data.settings?.timer_notify || {};
+        const services = act === "tn-off" ? [] : act === "tn-starter" ? (cur.services || []) : [...this.shadowRoot.querySelectorAll(".tnsvc:checked")].map((x) => x.value);
+        const starter = act === "tn-starter" ? !cur.starter : !!cur.starter;
+        this._ws({ type: "einkaufsliste/timer_notify/set", services, starter })
+          .then(() => { this._toast(services.length ? "⏰ Timer-Meldung ist an" : "⏰ Timer-Meldung ist aus"); setTimeout(() => this._renderSettings(), 150); })
           .catch(() => {});
         break;
       }
@@ -16014,6 +16422,22 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
           this._toast(n ? `⭐ Auf die Liste: ${r.added.slice(0, 4).join(", ")}${n > 4 ? " …" : ""}` : "⭐ Alle Favoriten stehen schon auf der Liste 👍");
         }).catch(() => {});
         break;
+      case "recipe-star": { // ⭐ 1–5 Sterne, gleicher Stern nochmal = weg
+        const rec = this._recipe(el.closest(".rtools")?.dataset.id);
+        if (!rec) break;
+        const n = Number(el.dataset.n), next = this._myStars(rec) === n ? 0 : n; // ⭐ pro Person: nur MEINE Sterne
+        this._ws({ type: "einkaufsliste/recipe/rate", recipe_id: rec.id, stars: next })
+          .then(() => { elRateLocal(rec, this._hass?.user?.id, this._hass?.user?.name, next); this._toast(next ? `⭐ ${next} von 5 Sternen` : "Sterne entfernt"); this._renderRecipeList(); }).catch(() => {});
+        break;
+      }
+      case "recipe-star-sort": { // ⭐ Familienliebling zuerst an/aus
+        this._recStars = !this._recStarSort();
+        try { localStorage.setItem("einkaufsliste_recstars", this._recStars ? "1" : "0"); } catch (_) { /* egal */ }
+        this.shadowRoot.querySelectorAll(".rstarsort").forEach((b) => { b.classList.toggle("on", this._recStars); b.setAttribute("aria-pressed", String(this._recStars)); b.querySelector("ha-icon")?.setAttribute("icon", this._recStars ? "mdi:star" : "mdi:star-outline"); });
+        this._toast(this._recStars ? "⭐ Familienliebling zuerst" : "🔤 Nach Name sortiert");
+        this._renderRecipeList(); this._renderSetRecipeList();
+        break;
+      }
       case "recipe-plan": { // 📅 antippen: nichts → 💭 Wunsch → 📅 Diese Woche → nichts
         const rec = this._recipe(el.closest(".rtools")?.dataset.id);
         if (!rec) break;
@@ -16483,6 +16907,11 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
 
   _onChange(e) {
     const t = e.target;
+    if (t.id === "edStore") { // 🚫 „Nicht bei …“ gibt es nur bei „Egal wo“
+      const box = this.$("edNotIn");
+      if (box) box.hidden = !!t.value;
+      return;
+    }
     if (t.id === "csvFile") {
       const file = t.files?.[0];
       t.value = "";
@@ -16641,6 +17070,7 @@ ${S(".rzcols")}{column-count:2;column-gap:22px}${S(".rzcols .rzi")}{break-inside
         for_whom: this.$("edFor").value,
         store_id: this.$("edStore").value || null,
         category_id: this.$("edCat").value || null,
+        ...(this._notInValue() ? { not_in: this._notInValue() } : {}),
       });
       this._editing = null;
       this._renderAll();

@@ -32,7 +32,9 @@ from .categories import category_hints, guess_category
 from .geocode import async_geocode, geo_key
 from .netutil import photo_file_complete
 from .nutrition import clean_nutrition
-from .quantity import UNIT_CHOICES, apply_unit, is_bare, norm_qty, split_qty, split_qty_ex, unit_of
+from .repairs import sync_issues
+from .guest import info as guest_info
+from .quantity import UNIT_CHOICES, amount_of, apply_unit, is_bare, norm_qty, split_qty, split_qty_ex, unit_of, with_amount
 from .const import (
     CATEGORY_COLORS,
     CONF_CLEANUP_TIME,
@@ -551,6 +553,7 @@ def _clean_year_stats(raw: Any) -> dict[str, dict[str, Any]]:
             "added": int(s.get("added") or 0),
             "bought": int(s.get("bought") or 0),
             "who": counts(s.get("who"), 30),
+            "buyers": counts(s.get("buyers"), 30),
             "items": counts(s.get("items"), 400),
             "stores": counts(s.get("stores"), 60),
             "months": [int(v) for v in months],
@@ -567,6 +570,40 @@ def _money_value(amount: Any) -> float:
     else:
         t = t.replace(",", ".")
     return float(t)
+
+
+def _ratings_of(recipe: dict[str, Any]) -> dict[str, Any]:
+    """⭐ Bewertungen eines Rezepts (pro Person); alte Rezepte mit nur „stars“ werden zu einer Stimme „_alt“."""
+    raw = recipe.get("ratings")
+    out: dict[str, Any] = {}
+    if isinstance(raw, dict):
+        for k, v in raw.items():
+            try:
+                s = int((v or {}).get("s") or 0) if isinstance(v, dict) else 0
+            except (TypeError, ValueError):
+                s = 0
+            if 1 <= s <= 5:
+                out[str(k)[:64]] = {"s": s, **({"n": str(v["n"])[:40]} if v.get("n") else {})}
+    elif recipe.get("stars"):
+        try:
+            s = int(round(float(recipe["stars"])))
+        except (TypeError, ValueError):
+            s = 0
+        if 1 <= s <= 5:
+            out["_alt"] = {"s": s}
+    return out
+
+
+def _recipe_stars(recipe: dict[str, Any]) -> None:
+    """⭐ Durchschnitt (eine Nachkommastelle) + Anzahl neu ausrechnen; keine Bewertung = Felder weg."""
+    ratings = _ratings_of(recipe)
+    if ratings:
+        recipe["ratings"] = ratings
+        recipe["stars"] = round(sum(v["s"] for v in ratings.values()) / len(ratings), 1)
+        recipe["stars_n"] = len(ratings)
+    else:
+        for k in ("ratings", "stars", "stars_n"):
+            recipe.pop(k, None)
 
 class EinkaufslisteManager:
     """Verwaltet alle Daten der Einkaufsliste."""
@@ -593,6 +630,8 @@ class EinkaufslisteManager:
         self.cards_on: bool = False  # 💳 Kundenkarten-Funktion an/aus (standardmäßig aus) – gilt für alle
         self.cat_words: dict[str, dict[str, int]] = {}  # 🧠 Kategorie lernt mit: Wortteil (klein) -> {Kategorie-ID: wie oft dorthin verschoben}
         self.typos: dict[str, dict[str, Any]] = {}  # 🧠 Tippfehler (klein) -> {"right": Name, "n": wie oft korrigiert}
+        self._repair_cache: dict[str, Any] = {}  # 🩺 zuletzt gesetzte Reparatur-Hinweise (nur im Speicher)
+        self.guest: dict[str, Any] | None = None  # 🎫 Gast-Link {"th","ph","salt","until","store_id","by"} – Link und PIN nur als Prüfsumme
         self._pin_fails = 0  # 🛡️ falsche PIN-Eingaben in Folge (nur im Speicher)
         self._pin_locked_until = 0.0
         self.pin_hash: str | None = None  # 🔒 PIN für die Einstellungen (nur als Prüfsumme gespeichert)
@@ -632,6 +671,7 @@ class EinkaufslisteManager:
         self.offers_cfg: dict[str, Any] | None = None  # 🏷️ {"enabled", "zip", "stores", "hours", "key", "last", "ok", "error", "count"}
         self.offers_data: dict[str, list[dict[str, Any]]] = {}  # 🏷️ Artikelname klein -> Angebote
         self.offers_ext: dict[str, list[dict[str, Any]]] = {}  # 📬 Quelle -> Angebote aus eigenen Automationen (Dienst angebote_melden)
+        self.timer_notify: dict[str, Any] | None = None  # ⏰ Kochtimer fertig → Handy {"services": [notify-Dienste], "starter": nur an den Starter}
         self.recalls_cfg: dict[str, Any] | None = None  # ⚠️ Rückruf-Warnung {"enabled", "last", "ok", "error", "checked"}
         self.recalls_hits: list[dict[str, Any]] = []  # ⚠️ Treffer {"id","title","link","date","products","found"} – das Neueste vorn
         self.recalls_seen: list[str] = []  # ⚠️ schon gemeldete Warnungen (gegen doppelte Meldungen)
@@ -674,13 +714,19 @@ class EinkaufslisteManager:
         ids = (self.cleanup_cfg or {}).get("skip_stores") or []
         return [s for s in ids if self.store_by_id(s)]
 
+    @property
+    def pin_on(self) -> bool:
+        """📌 Anpinnen erlaubt (Standard: aus). Aus = Pins bleiben gespeichert, zählen aber nicht."""
+        return bool((self.cleanup_cfg or {}).get("pin_on", False))
+
     def set_cleanup(
         self, on: bool | None = None, weekday: int | None = None, time: str | None = None, min_age_days: int | None = None,
-        skip_stores: list[str] | None = None,
+        skip_stores: list[str] | None = None, pin_on: bool | None = None,
     ) -> dict[str, Any]:
-        """🧹 Aufräumen in der Karte einstellen: an/aus, Wochentag, Uhrzeit, Mindestalter, ausgenommene Geschäfte (gilt für alle)."""
+        """🧹 Aufräumen in der Karte einstellen: an/aus, Wochentag, Uhrzeit, Mindestalter, ausgenommene Geschäfte, 📌 Anpinnen (gilt für alle)."""
         cfg = {
             "skip_stores": self.cleanup_skip_stores,
+            "pin_on": self.pin_on,
             "on": self.cleanup_on,
             CONF_CLEANUP_WEEKDAY: self.cleanup_weekday,
             CONF_CLEANUP_TIME: "%02d:%02d:00" % self.cleanup_time,
@@ -705,6 +751,8 @@ class EinkaufslisteManager:
             cfg[CONF_MIN_AGE_DAYS] = int(min_age_days)
         if skip_stores is not None:
             cfg["skip_stores"] = [s for s in dict.fromkeys(skip_stores) if self.store_by_id(s)]
+        if pin_on is not None:
+            cfg["pin_on"] = bool(pin_on)
         if on is not None:
             if on and not cfg["on"]:
                 self.last_cleanup = _now_iso()  # frisch eingeschaltet: nicht sofort Verpasstes nachholen
@@ -898,7 +946,11 @@ class EinkaufslisteManager:
         self.offers_ext = {str(k): [o for o in v if isinstance(o, dict)] for k, v in raw_ext.items()
                            if isinstance(v, list)} if isinstance(raw_ext, dict) else {}
         self.recalls_cfg = data.get("recalls_cfg") or None
+        tn = data.get("timer_notify")
+        self.timer_notify = tn if isinstance(tn, dict) and tn.get("services") else None
         self.recalls_hits = [h for h in (data.get("recalls_hits") or []) if isinstance(h, dict)]
+        g = data.get("guest")
+        self.guest = g if isinstance(g, dict) and isinstance(g.get("th"), str) and isinstance(g.get("ph"), str) else None
         self.recalls_seen = [str(k) for k in (data.get("recalls_seen") or [])]
         for store in self.stores:  # 📍 früher eine Zone pro Geschäft, jetzt beliebig viele
             if "zones" not in store:
@@ -989,7 +1041,9 @@ class EinkaufslisteManager:
             "offers_data": self.offers_data,
             "offers_ext": self.offers_ext,
             "recalls_cfg": self.recalls_cfg,
+            "timer_notify": self.timer_notify,
             "recalls_hits": self.recalls_hits,
+            "guest": self.guest,
             "recalls_seen": self.recalls_seen,
             "last_cleanup": self.last_cleanup,
             "log": self.log,
@@ -1008,6 +1062,10 @@ class EinkaufslisteManager:
     def _changed(self) -> None:
         self.stat_changes += 1
         self._schedule_save()
+        try:  # 🩺 Reparatur-Hinweise in HA aktuell halten (schreibt nur bei einer Änderung)
+            sync_issues(self.hass, self, self._repair_cache)
+        except Exception:  # noqa: BLE001 – ein Hinweis darf nie die Liste aufhalten
+            _LOGGER.debug("Reparatur-Hinweise ließen sich nicht setzen", exc_info=True)
         async_dispatcher_send(self.hass, SIGNAL_UPDATED)
 
     # ------------------------------------------------------------------ Ausgabe
@@ -1069,6 +1127,7 @@ class EinkaufslisteManager:
                 "min_age_days": self.min_age_days,
                 "cleanup_on": self.cleanup_on,
                 "cleanup_skip_stores": self.cleanup_skip_stores,
+                "pin_on": self.pin_on,
                 "view_prefs": self.view_prefs,
                 "next_cleanup": self.next_cleanup().isoformat(),
                 "pin": bool(self.pin_hash),
@@ -1096,8 +1155,10 @@ class EinkaufslisteManager:
                 "mail_import": self._mail_import_info(),
                 "offers": self._offers_info(),
                 "recalls": self.recalls_info(),
+                "timer_notify": self.timer_notify,
                 "grocy": self.grocy_info(),
                 "mealie": self.mealie_info(),
+                "guest": guest_info(self),  # 🎫 läuft ein Gast-Link? (nie Schlüssel oder PIN)
                 "errors": len(self.errors),
                 "errors_24h": self._errors_since(timedelta(hours=24)),
             },
@@ -1403,7 +1464,7 @@ class EinkaufslisteManager:
         cfg = self.offers_cfg
         if not cfg:
             return None
-        return {k: cfg.get(k) for k in ("enabled", "zip", "stores", "hours", "last", "ok", "error", "count")}
+        return {k: cfg.get(k) for k in ("enabled", "zip", "stores", "hours", "last", "ok", "error", "count", "foreign")}
 
     def set_offers(self, enabled: bool, zip_code: str | None = None, stores: list[str] | None = None,
                    hours: int | None = None) -> dict[str, Any] | None:
@@ -1428,6 +1489,60 @@ class EinkaufslisteManager:
             self.offers.start()
         self._changed()
         return self._offers_info()
+
+    def set_timer_notify(self, services: list[str] | None, starter: bool = False) -> dict[str, Any] | None:
+        """⏰ Kochtimer fertig: an diese Handys melden (notify-Dienste, z. B. mobile_app_marcos_handy). Leer = aus."""
+        clean: list[str] = []
+        for svc in services or []:
+            name = str(svc or "").strip().lower().removeprefix("notify.")
+            if re.fullmatch(r"[a-z0-9_]{1,80}", name) and name not in clean:
+                clean.append(name)
+        self.timer_notify = {"services": clean[:10], "starter": bool(starter)} if clean else None
+        self._changed()
+        return self.timer_notify
+
+    def _starter_services(self, user_id: str | None) -> list[str]:
+        """📱 Handys der Person, die den Timer gestartet hat (Person → Geräte-Tracker der HA-App → notify.mobile_app_…)."""
+        if not user_id:
+            return []
+        out: list[str] = []
+        for st in self.hass.states.async_all("person"):
+            if st.attributes.get("user_id") != user_id:
+                continue
+            for tracker in st.attributes.get("device_trackers") or []:
+                obj = str(tracker).split(".", 1)[-1]
+                if obj and f"mobile_app_{obj}" not in out:
+                    out.append(f"mobile_app_{obj}")
+        return out
+
+    def timer_notify_targets(self, timer: dict[str, Any]) -> list[str]:
+        """⏰ Wohin die Meldung geht: alle ausgewählten – oder (Schalter an) nur die Handys des Starters, falls darunter."""
+        cfg = self.timer_notify or {}
+        chosen = [s for s in cfg.get("services") or [] if self.hass.services.has_service("notify", s)]
+        if cfg.get("starter"):
+            mine = [s for s in chosen if s in self._starter_services(timer.get("by_id"))]
+            if mine:
+                return mine
+        return chosen
+
+    async def _send_timer_notify(self, timer: dict[str, Any], recipe: dict[str, Any] | None) -> None:
+        """⏰ Handy-Meldung „Timer fertig“ – klappt auch, wenn keine Karte offen ist. Fehler stören den Timer nie."""
+        parts = [timer["label"]]
+        if recipe and recipe["name"] != timer["label"]:
+            parts.append(recipe["name"])
+        if timer.get("step"):
+            parts.append(f"Schritt {timer['step']}")
+        payload = {
+            "title": "⏲️ Timer fertig",
+            "message": " · ".join(parts),
+            "data": {"tag": f"einkaufsliste_timer_{timer['id']}", "ttl": 0, "priority": "high",
+                     "push": {"interruption-level": "time-sensitive"}},
+        }
+        for svc in self.timer_notify_targets(timer):
+            try:
+                await self.hass.services.async_call("notify", svc, payload, blocking=True)
+            except Exception as err:  # noqa: BLE001 – ein kaputtes Handy darf die anderen nicht aufhalten
+                _LOGGER.warning("Timer-Meldung an notify.%s ging nicht: %s", svc, err)
 
     def recalls_info(self) -> dict[str, Any] | None:
         """⚠️ Rückruf-Warnung für die Karte: Schalter, letzter Stand und Treffer."""
@@ -2405,8 +2520,10 @@ class EinkaufslisteManager:
         self._changed()
         return next((p for p in self.products() if p["key"] == new_key), {"key": new_key})
 
-    def _learn_store(self, name: str, store_id: str | None) -> None:
-        """Wo etwas gekauft wurde, gibt es das auch – für „Gibt's bei“ (mehrere Geschäfte pro Produkt)."""
+    def _learn_store(self, name: str, store_id: str | None, usual: bool = True) -> None:
+        """Wo etwas gekauft wurde, gibt es das auch – für „Gibt's bei“ (mehrere Geschäfte pro Produkt).
+
+        usual=False: 🚫 „Egal wo“ mit „Nicht bei …“ – zählt für „Gibt's bei“, schlägt beim Eintragen aber kein Geschäft vor."""
         if not store_id or not self.store_by_id(store_id):
             return
         hist = self.history.get((name or "").lower())
@@ -2418,6 +2535,8 @@ class EinkaufslisteManager:
         # 🧠 Wo wird es wirklich gekauft? Jedes Abhaken zählt – das Geschäft mit den meisten Haken (ab 2×) ist „meist dort“
         bought = hist.setdefault("bought", {})
         bought[store_id] = int(bought.get(store_id, 0)) + 1
+        if not usual:
+            return
         best = max(bought.items(), key=lambda kv: kv[1])
         if best[1] >= 2 and sum(1 for v in bought.values() if v == best[1]) == 1 and self.store_by_id(best[0]):
             hist["usual"] = best[0]
@@ -2772,6 +2891,20 @@ class EinkaufslisteManager:
         self._changed()
         return item
 
+    @callback
+    def pin_item(self, item_id: str, pinned: bool) -> dict[str, Any]:
+        """📌 Anpinnen: der Artikel wird beim automatischen Aufräumen übersprungen (nur wenn ⚙️ → Aufräumen → Anpinnen an ist)."""
+        if pinned and not self.pin_on:
+            raise ValueError("Anpinnen ist aus – einschalten unter ⚙️ → Aufräumen.")
+        item = self.get_item(item_id)
+        if pinned:
+            item["pinned"] = True
+        else:
+            item.pop("pinned", None)
+        self._log("pin" if pinned else "unpin", item, "angepinnt" if pinned else "nicht mehr angepinnt")
+        self._changed()
+        return item
+
     GONE_DAYS = 2  # ❌ so viele Tage bleibt „war nicht da“ sichtbar, dann wird ohne Kauf abgehakt
 
     @callback
@@ -2989,6 +3122,31 @@ class EinkaufslisteManager:
         matches.sort(key=lambda i: i["checked"])  # offene zuerst
         return matches[0]
 
+    def find_items(self, name: str, store_id: str | None = None) -> list[dict[str, Any]]:
+        """🧹 Für remove_item mit all: ALLE Artikel mit diesem Namen (optional nur in einem Geschäft)."""
+        wanted = (_clean(name) or "").lower()
+        matches = [
+            i for i in self.items
+            if i["name"].lower() == wanted and (store_id is None or i["store_id"] == store_id)
+        ]
+        if not matches:
+            raise ValueError(f"„{name}“ steht nicht auf der Liste.")
+        return matches
+
+    def _clean_not_in(self, value: Any) -> list[str]:
+        """🚫 „Nicht bei …“: nur echte Geschäfts-IDs, jede nur einmal, Reihenfolge wie die Geschäfte."""
+        wanted = {str(v) for v in (value or []) if v}
+        return [st["id"] for st in self.stores if st["id"] in wanted]
+
+    def shows_in_store(self, item: dict[str, Any], store: dict[str, Any] | None) -> bool:
+        """🛒 Steht der Artikel im Reiter dieses Geschäfts? Eigenes Geschäft = ja; „Egal wo“ = ja,
+        außer das Geschäft blendet „Egal wo“ ganz aus (no_any) oder der Artikel sagt „🚫 Nicht bei …“ dieses Geschäft."""
+        if store is None:
+            return True
+        if item.get("store_id"):
+            return item["store_id"] == store["id"]
+        return not store.get("no_any") and store["id"] not in (item.get("not_in") or [])
+
     def guess_category(self, name: str) -> str | None:
         return guess_category(name, self.categories)
 
@@ -3073,6 +3231,7 @@ class EinkaufslisteManager:
             count=entry.get("count", 0) + 1,
             last_used=_now_iso(),
         )
+        self._remember_not_in(entry, item)
         # 📏 Einheit merken („Backpulver“ -> Pck.) – nur beim direkten Eintragen, nicht aus Rezepten,
         # und nicht, wenn sie im Katalog fest eingestellt ist
         if not item.get("recipe_id") and not entry.get("unit_fixed"):
@@ -3094,6 +3253,16 @@ class EinkaufslisteManager:
             for k, _ in oldest[: len(self.history) - HISTORY_LIMIT]:
                 self.history.pop(k, None)
 
+    @staticmethod
+    def _remember_not_in(entry: dict[str, Any], item: dict[str, Any]) -> None:
+        """🚫 „Nicht bei …“ beim Produkt merken (nur bei „Egal wo“) – kommt beim nächsten Eintragen wieder mit."""
+        if item.get("recipe_id"):
+            return
+        if not item.get("store_id") and item.get("not_in"):
+            entry["not_in"] = list(item["not_in"])
+        else:
+            entry.pop("not_in", None)
+
     def _year_count(self, kind: str, item: dict[str, Any], who: str | None) -> None:
         """🎁 Jahresrückblick: nur zählen (Anzahl pro Produkt, Person, Geschäft und Monat) – keine Einzelheiten, bleibt in Home Assistant."""
         if not self.year_on:
@@ -3114,6 +3283,9 @@ class EinkaufslisteManager:
             return
         s["bought"] += 1
         s["months"][now.month - 1] += 1
+        buyers = s.setdefault("buyers", {})  # 📊 Statistik: wer hakt ab (= kauft)?
+        if who and (who in buyers or len(buyers) < 30):
+            buyers[who] = buyers.get(who, 0) + 1
         if name:
             s["items"][name] = s["items"].get(name, 0) + 1
             if len(s["items"]) > 400:  # klein halten: die seltensten Produkte fallen raus
@@ -3148,6 +3320,61 @@ class EinkaufslisteManager:
             "stores": stores,
             "months": months,
             "best_month": best,
+        }
+
+    def stats_summary(self) -> dict[str, Any]:
+        """📊 Statistik-Reiter: meistgekaufte Artikel, Einkäufe je Geschäft, Person und Monat (die letzten 12 Monate).
+
+        Nutzt die Zähler vom Jahresrückblick (nur Anzahlen, bleiben in Home Assistant) und – falls an –
+        die Beträge aus dem Einkaufs-Protokoll 🧾.
+        """
+        now = dt_util.now()
+        items: dict[str, int] = {}
+        stores: dict[str, int] = {}
+        buyers: dict[str, int] = {}
+        adders: dict[str, int] = {}
+        for y in (str(now.year - 1), str(now.year)):  # dieses und letztes Jahr zusammen
+            s = self.year_stats.get(y) or {}
+            for src, dst in ((s.get("items"), items), (s.get("stores"), stores), (s.get("buyers"), buyers), (s.get("who"), adders)):
+                for k, v in (src or {}).items():
+                    dst[k] = dst.get(k, 0) + int(v or 0)
+        months: list[dict[str, Any]] = []
+        for back in range(11, -1, -1):  # 12 Monate bis heute, ältester zuerst
+            y, mo = now.year, now.month - back
+            while mo < 1:
+                y, mo = y - 1, mo + 12
+            row = (self.year_stats.get(str(y)) or {}).get("months") or [0] * 12
+            months.append({"y": y, "m": mo, "n": int(row[mo - 1] or 0), "eur": 0.0})
+        money: dict[str, float] = {}
+        trips: dict[str, int] = {}
+        if self.spend:
+            first = f"{months[0]['y']:04d}-{months[0]['m']:02d}"
+            for e in self.purchases:
+                t = str(e.get("t") or "")[:7]
+                if t < first:
+                    continue
+                for row in months:
+                    if t == f"{row['y']:04d}-{row['m']:02d}":
+                        row["eur"] = round(row["eur"] + float(e.get("a") or 0), 2)
+                sid = e.get("s")
+                money[sid] = round(money.get(sid, 0.0) + float(e.get("a") or 0), 2)
+                trips[sid] = trips.get(sid, 0) + 1
+        top = lambda d, n: [[k, v] for k, v in sorted(d.items(), key=lambda kv: (-kv[1], str(kv[0])))[:n]]  # noqa: E731
+        store_rows = []
+        for sid in sorted(set(stores) | set(money), key=lambda k: (-stores.get(k, 0), -money.get(k, 0))):
+            st = self.store_by_id(sid)
+            if st:
+                store_rows.append({"name": st["name"], "color": st.get("color"), "n": stores.get(sid, 0),
+                                   "eur": money.get(sid), "trips": trips.get(sid)})
+        return {
+            "on": self.year_on,
+            "spend": self.spend,
+            "since": self.year_since,
+            "items": top(items, 10),
+            "stores": store_rows[:12],
+            "buyers": top(buyers, 8),
+            "adders": top(adders, 8),
+            "months": months,
         }
 
     def set_year_on(self, on: bool) -> None:
@@ -3222,8 +3449,11 @@ class EinkaufslisteManager:
         added_by_id: str | None = None,
         from_offer: bool = False,
         own_note: str | None = None,
+        not_in: list[str] | None = None,
     ) -> dict[str, Any]:
         """Artikel hinzufügen.
+
+        not_in: 🚫 nur bei „Egal wo“ – in diesen Geschäften (IDs) steht der Artikel nicht (None = nicht ändern).
 
         Gibt es schon einen Artikel mit gleichem Namen, gleicher Notiz, gleichem
         „für wen“ und gleichem Geschäft, wird kein zweiter angelegt: Ist er abgehakt, kommt er wieder
@@ -3290,6 +3520,8 @@ class EinkaufslisteManager:
                 )
             if category_id:
                 existing["category_id"] = category_id
+            if not_in is not None and existing.get("store_id") is None:
+                self._set_not_in(existing, not_in)
             if own_note is not None and recipe_id is None:
                 if own:
                     existing["own_note"] = own
@@ -3328,6 +3560,12 @@ class EinkaufslisteManager:
             "checked_by": None,
             "checked_at": None,
         }
+        if store_id is None and not_in is None and recipe_id is None:  # 🚫 nichts mitgegeben: wie beim letzten Mal
+            hist = self.history_for(name) or {}
+            if not hist.get("store_id"):
+                not_in = hist.get("not_in")
+        if store_id is None and not_in:
+            self._set_not_in(item, not_in)
         self.items.append(item)
         self._log("add", item, who=added_by)
         self._remember(item)
@@ -3335,6 +3573,14 @@ class EinkaufslisteManager:
             self._changed()
         self._fire_added(item, False)
         return item
+
+    def _set_not_in(self, item: dict[str, Any], value: Any) -> None:
+        """🚫 „Nicht bei …“ setzen – leer = Feld ganz weg (alte Artikel bleiben unverändert)."""
+        clean = self._clean_not_in(value)
+        if clean:
+            item["not_in"] = clean
+        else:
+            item.pop("not_in", None)
 
     @callback
     def update_item(self, item_id: str, **fields: Any) -> dict[str, Any]:
@@ -3391,9 +3637,15 @@ class EinkaufslisteManager:
             item["quantity"] = norm_qty(_clean(fields["quantity"]))
         if "own_note" in fields:
             item["own_note"] = _own(fields["own_note"])
+        if "not_in" in fields:
+            self._set_not_in(item, fields["not_in"])
+        if item.get("store_id"):  # 🚫 festes Geschäft: „Nicht bei …“ ergibt keinen Sinn mehr
+            item.pop("not_in", None)
         key = item["name"].lower()
         if key in self.history:
             self.history[key].update(store_id=item["store_id"], category_id=item["category_id"])
+            if "not_in" in fields or "store_id" in fields:
+                self._remember_not_in(self.history[key], item)
         if "own_note" in fields:
             self._set_own_note(item["name"], item.get("note"), item.get("own_note"))
         self._log_changes(before, item)
@@ -3431,6 +3683,10 @@ class EinkaufslisteManager:
             return
         if moved:
             parts.append(f"Geschäft {store_name(before.get('store_id'))} → {store_name(item.get('store_id'))}")
+        if (before.get("not_in") or []) != (item.get("not_in") or []) and not item.get("store_id"):
+            def names(ids: list[str] | None) -> str:
+                return ", ".join(store_name(x) for x in ids or []) or "–"
+            parts.append(f"Nicht bei {names(before.get('not_in'))} → {names(item.get('not_in'))}")
         if parts:
             self._log("edit", item, " · ".join(parts))
 
@@ -3456,7 +3712,8 @@ class EinkaufslisteManager:
             checked = not item["checked"]
         if checked == item["checked"]:
             return item
-        if checked and item["store_id"] is None and not item.get("recipe_id") and self.store_by_id(at_store):
+        # 🚫 mit „Nicht bei …“ hast du schon entschieden („überall außer …“) – dann bleibt er „Egal wo“
+        if checked and item["store_id"] is None and not item.get("recipe_id") and not item.get("not_in") and self.store_by_id(at_store):
             old = self._find_same(item["name"], item.get("note"), item.get("for_whom"), at_store, None)
             if old is not None and old is not item and old["checked"]:
                 self.items.remove(old)  # der alte abgehakte Eintrag dort wird ersetzt
@@ -3473,7 +3730,10 @@ class EinkaufslisteManager:
         if checked:
             item.update(checked=True, checked_at=_now_iso(), checked_by=by, out_at=None)
             item.pop("gone_at", None)  # ❌ doch noch bekommen = normal gekauft
-            self._learn_store(item["name"], item.get("store_id"))  # 🏪 hier gekauft = gibt's hier
+            if item.get("store_id"):
+                self._learn_store(item["name"], item["store_id"])  # 🏪 hier gekauft = gibt's hier
+            elif item.get("not_in") and self.store_by_id(at_store):  # 🚫 bleibt „Egal wo“, der Kauf zählt trotzdem
+                self._learn_store(item["name"], at_store, usual=False)
             self._fire_bought(item, by)
         elif undo:
             # ↩️ Rückgängig: nur den Haken weg – altes Datum und Eintrager bleiben
@@ -3495,6 +3755,38 @@ class EinkaufslisteManager:
             self._fire_added(item, True)
         self._changed()
         return item
+
+    @callback
+    def check_partial(self, item_id: str, got: Any, by: str | None = None, by_id: str | None = None,
+                      at_store: str | None = None) -> dict[str, Any]:
+        """🧺 Teilweise gekauft: „2 von 3 bekommen“.
+
+        Das Gekaufte zählt wie abgehakt (Verlauf, Jahresrückblick, Ereignis einkaufsliste_item_bought mit der
+        gekauften Menge), der Rest bleibt offen auf der Liste – mit gleicher Einheit („3 Pck.“ -> „1 Pck.“).
+        Alles bekommen? Dann ist es ganz normales Abhaken.
+        """
+        item = self.get_item(item_id)
+        if item["checked"]:
+            raise ValueError("Der Artikel ist schon abgehakt.")
+        total = amount_of(item.get("quantity"))
+        if total is None:
+            raise ValueError("Bei dieser Menge kann ich nicht rechnen – bitte einfach abhaken.")
+        try:
+            value = float(str(got).replace(",", "."))
+        except (TypeError, ValueError) as err:
+            raise ValueError("Wie viele hast du bekommen? Bitte eine Zahl.") from err
+        if value <= 0:
+            raise ValueError("Wie viele hast du bekommen? Bitte mehr als 0.")
+        if value >= total:
+            return self.set_checked(item_id, True, by, by_id, at_store)
+        bought_qty, rest_qty = with_amount(item.get("quantity"), value), with_amount(item.get("quantity"), total - value)
+        old = item.get("quantity")
+        item["quantity"] = rest_qty
+        self._log("partial", item, f"{bought_qty} von {old} bekommen · Rest {rest_qty}", who=by)
+        self._learn_store(item["name"], item.get("store_id") or (at_store if self.store_by_id(at_store) else None))
+        self._fire_bought({**item, "quantity": bought_qty}, by)
+        self._changed()
+        return {**item, "bought": bought_qty}
 
     @callback
     def move_item(
@@ -4294,9 +4586,10 @@ class EinkaufslisteManager:
         now = _now_iso()
         keep: list[dict[str, Any]] = []
         skip = set() if force else set(self.cleanup_skip_stores)  # 🏬 ausgenommene Geschäfte bleiben (außer bei „Alles abhaken“)
+        pins = self.pin_on and not force  # 📌 angepinnte Artikel bleiben (außer bei „Alles abhaken“ oder wenn Anpinnen aus ist)
         for item in self.items:
             keep.append(item)
-            if item["checked"] or (skip and item.get("store_id") in skip):
+            if item["checked"] or (skip and item.get("store_id") in skip) or (pins and item.get("pinned")):
                 continue
             # „war aus“ startet die Frist neu: gezählt wird ab dem späteren Datum
             added = max(filter(None, (_local_date(item.get("added_at")), _local_date(item.get("out_at")))), default=ref_date)
@@ -4503,6 +4796,8 @@ class EinkaufslisteManager:
                     "by": timer.get("by"),
                 },
             )
+            if (self.timer_notify or {}).get("services"):
+                self.hass.async_create_task(self._send_timer_notify(timer, recipe))
         self._changed()
 
     @callback
@@ -4863,6 +5158,31 @@ class EinkaufslisteManager:
             self._schedule_save()
 
     @callback
+    def rate_recipe(self, recipe_id: str, user_id: str | None, name: str | None, stars: Any) -> dict[str, Any]:
+        """⭐ Sterne pro Person: jeder vergibt eigene 1–5 Sterne, am Rezept steht der Durchschnitt.
+
+        0 = eigene Bewertung weg. Gibt es noch eine alte Einzel-Bewertung (ohne Person, vor 2.76.29-beta.4),
+        übernimmt die erste persönliche Bewertung deren Platz.
+        """
+        recipe = self.recipe_by_id(recipe_id)
+        if recipe is None:
+            raise ValueError("Dieses Rezept gibt es nicht (mehr).")
+        try:
+            stars = int(stars or 0)
+        except (TypeError, ValueError):
+            stars = 0
+        key = str(user_id or name or "?")[:64]
+        ratings = _ratings_of(recipe)
+        ratings.pop("_alt", None)
+        if 1 <= stars <= 5:
+            ratings[key] = {"s": stars, **({"n": str(name)[:40]} if name else {})}
+        else:
+            ratings.pop(key, None)
+        recipe["ratings"] = ratings
+        _recipe_stars(recipe)
+        self._changed()
+        return recipe
+
     def update_recipe(self, recipe_id: str, **fields: Any) -> dict[str, Any]:
         recipe = self.recipe_by_id(recipe_id)
         if recipe is None:
@@ -4917,6 +5237,13 @@ class EinkaufslisteManager:
                 recipe["nutrition"] = nut
             else:
                 recipe.pop("nutrition", None)
+        if "stars" in fields:  # ⭐ alte Einzel-Bewertung (ohne Person): gilt als eine Stimme „früher“, 0/leer = weg
+            try:
+                stars = int(fields["stars"] or 0)
+            except (TypeError, ValueError):
+                stars = 0
+            recipe["ratings"] = {"_alt": {"s": stars}} if 1 <= stars <= 5 else {}
+            _recipe_stars(recipe)
         if "minutes" in fields:  # ⏱️ Dauer ca., leer = weg
             mins = _minutes(fields["minutes"])
             if mins:
@@ -5248,9 +5575,15 @@ class EinkaufslisteManager:
         for item in self.items:
             if item[field] == group_id:
                 item[field] = None
+            if kind == "stores" and group_id in (item.get("not_in") or []):  # 🚫 Geschäft weg: aus „Nicht bei …“ streichen
+                self._set_not_in(item, [x for x in item["not_in"] if x != group_id])
         for hist in list(self.history.values()) + list(self.barcodes.values()):
             if hist.get(field) == group_id:
                 hist[field] = None
+            if kind == "stores" and group_id in (hist.get("not_in") or []):
+                hist["not_in"] = [x for x in hist["not_in"] if x != group_id]
+                if not hist["not_in"]:
+                    hist.pop("not_in")
         for recipe in self.recipes:
             for entry_item in recipe["items"]:
                 if entry_item.get(field) == group_id:

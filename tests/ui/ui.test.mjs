@@ -70,6 +70,21 @@ const ids = await p.evaluate("window.__data.stores.map(s=>s.id)");
 check("Aufräum-Zeile steht bei „Alle“", await foot("all") === true);
 check("Aufräum-Zeile steht bei einem Geschäft ohne Ausnahme", await foot(ids[1]) === true);
 check("Aufräum-Zeile fehlt beim ausgenommenen Geschäft", await foot(ids[0]) === false);
+const skipHint = (tab) => p.evaluate(`(() => { const c=${card}; c._tab=${JSON.stringify(tab)}; c._renderAll(); return [...c.shadowRoot.querySelectorAll("span")].some(e=>/Hier wird nicht automatisch aufgeräumt/.test(e.textContent) && e.offsetParent!==null); })()`);
+check("🏬 Hinweis steht beim ausgenommenen Geschäft", await skipHint(ids[0]) === true);
+check("🏬 Hinweis fehlt bei „Alle“", await skipHint("all") === false);
+// 📌 Anpinnen: ohne Schalter kein Menüpunkt, mit Schalter Menüpunkt und 📌 statt 🧹-Datum
+const pinState = (on, pinned) => p.evaluate(`(() => { const c=${card}; c._tab="all"; c._data.settings.pin_on=${on}; const it=c._data.items.find(i=>i.name==="Milch"); if (${pinned}) it.pinned=true; else delete it.pinned; c._menuId=it.id; c._renderAll();
+  const row=c.shadowRoot.querySelector('.item[data-id="'+it.id+'"]')?.closest("li")||c.shadowRoot.querySelector('.item[data-id="'+it.id+'"]');
+  const menu=!!c.shadowRoot.querySelector('[data-act="menu-pin"]'); const txt=c.shadowRoot.querySelector('.item[data-id="'+it.id+'"]')?.textContent||"";
+  c._menuId=null; return { menu, pin: txt.includes("📌"), broom: txt.includes("🧹") }; })()`);
+r = await pinState(false, true);
+check("📌 Schalter aus: kein Menüpunkt, 🧹-Datum statt 📌", !r.menu && !r.pin && r.broom, JSON.stringify(r));
+r = await pinState(true, false);
+check("📌 Schalter an: Menüpunkt „Anpinnen“ da", r.menu && r.broom, JSON.stringify(r));
+r = await pinState(true, true);
+check("📌 Angepinnt: 📌 statt 🧹-Datum", r.pin && !r.broom, JSON.stringify(r));
+await p.evaluate(`(() => { const c=${card}; c._data.settings.pin_on=false; delete c._data.items.find(i=>i.name==="Milch").pinned; c._renderAll(); })()`);
 
 // 6) Emojis vorn an Knöpfen/Überschriften werden zu Linien-Symbolen, Rückfragen sind ein eigenes Fenster
 await p.evaluate(`(() => { const c=${card}; c._view="settings"; c._renderAll(); })()`);
@@ -101,6 +116,27 @@ r = await p.evaluate(`(async () => { const c=${card}; const calls=[]; c._ws=asyn
   return { href:a?.getAttribute("href"), rel:a?.getAttribute("rel"), prod:host.querySelector(".recallhit b")?.textContent, check:!!host.querySelector('[data-act="recalls-check"]'), calls }; })()`);
 check("Rückruf-Warnung: Treffer mit sicherem Link", r.href === "https://www.lebensmittelwarnung.de/x.html" && /noopener/.test(r.rel) && r.prod === "Kaffee" && r.check, JSON.stringify(r));
 check("Rückruf-Warnung: ✔ schickt „dismiss“", r.calls.some((m) => m.type === "einkaufsliste/recalls/dismiss" && m.recall_id === "w1"), JSON.stringify(r.calls));
+
+// ⏰ Timer-Meldung (2.76.29-beta.1): Handys ankreuzen, Speichern schickt timer_notify/set
+r = await p.evaluate(`(async () => { const c=${card}; const keepWs=c._ws, keepSvc=c._hass.services, keepAdm=c._hass.user?.is_admin; const sent=[];
+  c._hass.services={...(keepSvc||{}), notify:{mobile_app_marcos_handy:{}, persistent_notification:{}, alexa_kueche:{}}}; c._hass.user={...(c._hass.user||{}), is_admin:true};
+  c._ws=async(m)=>{ sent.push(m); return {}; };
+  c._data.settings.timer_notify={services:["mobile_app_marcos_handy"], starter:false};
+  const host=c.shadowRoot.querySelector("ha-card"); const d=document.createElement("div"); d.id="tnTest"; d.innerHTML=c._timerNotifyHtml(); host.append(d);
+  const boxes=[...d.querySelectorAll(".tnsvc")].map(x=>({v:x.value, on:x.checked}));
+  const sw=!!d.querySelector('[data-act="tn-starter"]');
+  d.querySelector('.tnsvc[value="alexa_kueche"]').checked=true;
+  d.querySelector('[data-act="tn-save"]').click(); await new Promise(r=>setTimeout(r,50));
+  d.querySelector('[data-act="tn-starter"]').click(); await new Promise(r=>setTimeout(r,50));
+  d.remove(); c._ws=keepWs; c._hass.services=keepSvc; c._hass.user={...c._hass.user, is_admin:keepAdm};
+  return { boxes, sent, sw }; })()`);
+check("⏰ Timer-Meldung: App-Handys zuerst, persistent_notification nicht dabei, Haken gesetzt",
+  r.boxes.length === 2 && r.boxes[0].v === "mobile_app_marcos_handy" && r.boxes[0].on && !r.boxes.some((x) => x.v === "persistent_notification"), JSON.stringify(r.boxes));
+check("⏰ Timer-Meldung: Speichern schickt beide Dienste, Schalter „nur Starter“ schaltet um", r.sw && r.sent[0]?.type === "einkaufsliste/timer_notify/set" && r.sent[0].services.length === 2 && r.sent[0].starter === false && r.sent[1]?.starter === true, JSON.stringify(r.sent));
+// 🌍 Angebote im Nachbarland (#43): Statuszeile zeigt „Auch im Nachbarland“
+r = await p.evaluate(`(() => { const c=${card}; const was=c._data.settings.offers; c._data.settings.offers={enabled:true, ok:true, zip:"6900", stores:[], hours:6, last:new Date().toISOString(), count:3, foreign:["Kaufland (DE 88131)"]};
+  const h=c._offersHtml(); c._data.settings.offers=was; return { foreign:h.includes("Auch im Nachbarland:") && h.includes("Kaufland (DE 88131)"), hint:h.includes("Geschäft im Nachbarland?") }; })()`);
+check("🌍 Angebote: „Auch im Nachbarland“ + Hinweis", r.foreign && r.hint, JSON.stringify(r));
 r = await p.evaluate(`(() => { const c=${card}; const was=c._data.settings.privacy; c._data.settings.privacy=true; const blocked=/Gesperrt/.test(c._recallsHtml()); const priv=/Rückruf-Warnung/.test(c._privacyHtml(false)) && /Recall warning/.test(c._privacyHtml(true)); c._data.settings.privacy=was; return { blocked, priv, privOn: c._privacyOn.toString().slice(0,80) }; })()`);
 check("Rückruf-Warnung: Datenschutz an = „🔒 Gesperrt“, und sie steht auf der Datenschutz-Seite", r.blocked && r.priv, JSON.stringify(r));
 
@@ -1049,9 +1085,9 @@ r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const 
   const cap=tiles.map(t=>t.textContent.trim());
   tiles[0]?.click(); await new Promise(r=>setTimeout(r,80));
   c._ws=keepWs;
-  return { able, q, cap, sent:sent.map(m=>m.type||(m.done?"done":"")), take:sent.find(m=>m.type==="einkaufsliste/photo/take") }; });
+  return { able, q, cap, sent:sent.map(m=>m.type||(m.done?"done":"")), take:sent.find(m=>m.type==="einkaufsliste/photo/take"), search:sent.find(m=>m.type==="einkaufsliste/photo/search") }; });
 check("🔎 Foto suchen nur bei Produkten (nicht Rezept, Bon, Texterkennung)", r.able.prod && !r.able.recipe && !r.able.bon && !r.able.ocr, JSON.stringify(r.able));
-check("🔎 Suchfeld mit Name + Notiz, 2 Treffer mit Beschriftung", r.q === "Brezel Bäcker" && r.cap.length === 2 && r.cap[0] === "Laugenbrezel · Bäcker", JSON.stringify(r));
+check("🔎 Suchfeld startet mit dem Namen allein, Notiz geht als extra mit, 2 Treffer mit Beschriftung", r.q === "Brezel" && r.search?.extra === "Bäcker" && r.cap.length === 2 && r.cap[0] === "Laugenbrezel · Bäcker", JSON.stringify(r));
 check("🔎 Antippen schickt photo/take mit Adresse und schließt", r.take?.url === "https://images.openfoodfacts.org/a.jpg" && r.take?.name === "Brezel|Bäcker" && r.sent.includes("done"), JSON.stringify(r));
 await back();
 
@@ -1065,6 +1101,56 @@ r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const 
   d.settings.pin=keepPin; c._view="list"; c._prodTab=null; c._delFilter=""; c._renderAll();
   return res; });
 check("🗑️ Menü hat „Löschen“ und springt zu „Einkaufsliste Produkte löschen“ mit Suche", r.txt === "Löschen" && r.view === "settings" && r.sec === "products" && r.tab === "delete" && r.search === r.name, JSON.stringify(r));
+
+// 🎫 Gast-Link unter „Drucken & Teilen“: nur Admins, nur mit Einstellungen-PIN
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const d=c._data; const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+  const keepPin=d.settings.pin, keepWs=c._ws, keepUser=c._hass.user, calls=[];
+  try { localStorage.removeItem("einkaufsliste_pin_until"); } catch (_) {}
+  c._ws=async(m)=>{ calls.push(m.type); if (m.type==="einkaufsliste/pin/check") return { ok: m.pin==="1234" }; if (m.type==="einkaufsliste/guest/create") return { path:"/einkaufsliste/gast/#abc", until:"2026-11-20T12:00:00+00:00", store_id:null, by:"Test", created:"2026-11-19T12:00:00+00:00" }; return {}; };
+  const h=c.shadowRoot, res={};
+  c._hass={...c._hass, user:{...keepUser, is_admin:false}}; c._printPage(); await sleep(60);
+  res.noAdmin=!h.querySelector(".pagehost [data-guest]");
+  c._hass={...c._hass, user:{...keepUser, is_admin:true}}; d.settings.pin=false; c._printPage(); await sleep(60);
+  h.querySelector(".pagehost [data-guest]")?.click(); await sleep(60);
+  res.noPinStays=!!h.querySelector(".pagehost [data-guest]") && !h.querySelector(".prguest");
+  d.settings.pin=true; c._printPage(); await sleep(60);
+  h.querySelector(".pagehost [data-guest]").click(); await sleep(100);
+  res.askPin=!!h.querySelector(".pagehost .ppad");
+  const pad=[...h.querySelectorAll(".pagehost .ppad button")];
+  for (const k of ["1","2","3","4"]) { pad.find(b=>b.textContent.trim()===k)?.click(); await sleep(10); }
+  pad[pad.length-1].click(); // ✔ (Symbol-Knopf ohne Text)
+  await sleep(150);
+  res.title=h.querySelector(".pagehost h3")?.textContent; res.form=!!h.querySelector(".prguest #guestPin");
+  h.querySelector("#guestPin").value="5678"; h.querySelector('.prguest [data-act="guest-create"]').click(); await sleep(150);
+  res.url=h.querySelector(".prguest #guestUrl")?.value || ""; res.calls=calls.join(",");
+  while (c._page) c._pageBack();
+  d.settings.pin=keepPin; d.settings.guest=null; c._guestNew=null; c._ws=keepWs; c._hass={...c._hass, user:keepUser}; try { localStorage.removeItem("einkaufsliste_pin_until"); } catch (_) {}
+  c._renderAll(); return res; });
+check("🎫 Drucken & Teilen: Gast-Link nur für Admins", r.noAdmin, JSON.stringify(r));
+check("🎫 Drucken & Teilen: ohne Einstellungen-PIN bleibt der Gast-Link zu", r.noPinStays, JSON.stringify(r));
+check("🎫 Drucken & Teilen: erst PIN, dann Gast-Link-Formular, Link wird angezeigt", r.askPin && r.title === "Drucken & Teilen" && r.form && r.url.endsWith("/einkaufsliste/gast/#abc") && r.calls === "einkaufsliste/pin/check,einkaufsliste/guest/create", JSON.stringify(r));
+
+// 🕒 beta.4: letzte Stunde = orange Uhr (Klasse soon, kein Text), zu = grau (closed), kein „schließt“/„zu“-Text mehr
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const d=c._data; const pad=(n)=>String(n).padStart(2,"0");
+  const keep=d.stores.map((s)=>s.hours); const t=new Date(Date.now()+35*60000);
+  d.stores[0].hours=Array(7).fill(["00:01", `${pad(t.getHours())}:${pad(t.getMinutes())}`]); d.stores[1].hours=Array(7).fill(null);
+  c._view="list"; c._renderAll(); await new Promise(r=>setTimeout(r,60));
+  const tabs=[...c.shadowRoot.querySelectorAll(".tabs .tab")];
+  const res={ soon:tabs[1].classList.contains("soon") && !!tabs[1].querySelector(".tclock") && /schließt/.test(tabs[1].title), closed:tabs[2].classList.contains("closed") && !tabs[2].classList.contains("soon"), noText:!c.shadowRoot.querySelector(".tabs .tsoon") };
+  d.stores.forEach((s,i)=>{ s.hours=keep[i]; }); c._renderAll(); return res; });
+check("🕒 Ladenschluss: orange Uhr statt Text, zu = grau", r.soon && r.closed && r.noText, JSON.stringify(r));
+
+// ⭐ beta.4: Sterne pro Person – eigene Sterne leuchten, Durchschnitt am Namen, Text „Bewerte das letzte Essen“
+r = await p.evaluate(async () => { const c=document.querySelector('#c1'); const keepR=c._data.recipes, keepWs=c._ws, keepU=c._hass.user, calls=[];
+  c._hass={...c._hass, user:{...keepU, id:"me", name:"Ich"}}; c._ws=async(m)=>{ calls.push(m); return {}; };
+  c._data.recipes=[{id:"r1",name:"Lasagne",items:[{name:"Nudeln"}],ratings:{u2:{s:4,n:"Jamila"}},stars:4,stars_n:1}];
+  c._view="recipes"; c._renderAll(); await new Promise(r=>setTimeout(r,80)); const h=c.shadowRoot;
+  const before={ hint:h.querySelector(".rstarset .hint")?.textContent, on:h.querySelectorAll(".rstarset .iconbtn.on").length };
+  h.querySelector('.rstarset [data-act="recipe-star"][data-n="1"]').click(); await new Promise(r=>setTimeout(r,120));
+  const rec=c._data.recipes[0];
+  const res={ before, call:calls[0], stars:rec.stars, n:rec.stars_n, on:h.querySelectorAll(".rstarset .iconbtn.on").length, avg:h.querySelector(".rstars small")?.textContent };
+  c._data.recipes=keepR; c._ws=keepWs; c._hass={...c._hass, user:keepU}; c._view="list"; c._renderAll(); return res; });
+check("⭐ Sterne pro Person: Text, eigene Bewertung, Durchschnitt", r.before.hint === "Bewerte das letzte Essen" && r.before.on === 0 && r.call?.type === "einkaufsliste/recipe/rate" && r.call?.stars === 1 && r.stars === 2.5 && r.n === 2 && r.on === 1 && r.avg === "2,5", JSON.stringify(r));
 
 check("keine JavaScript-Fehler", errs.length === 0, errs.join(" | "));
 await b.close(); srv.close();

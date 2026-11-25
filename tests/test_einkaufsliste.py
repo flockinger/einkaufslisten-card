@@ -2824,7 +2824,8 @@ async def test_photo_search_by_name(hass, setup, hass_ws_client, aioclient_mock)
         {"code": "4", "product_name": "Brezel", "image_front_url": base + "4/front.400.jpg"},
         {"code": "5", "product_name": "Doppelt", "image_front_url": base + "1/front.400.jpg"},  # gleiches Bild nur einmal
     ]
-    aioclient_mock.get("https://world.openfoodfacts.org/cgi/search.pl", json={"products": products})
+    aioclient_mock.get("https://search.openfoodfacts.org/search", json={"hits": products})  # neue Suche zuerst
+    aioclient_mock.get("https://world.openfoodfacts.org/api/v2/product/3.json", json={"product": {}})  # ohne Bild: nachschlagen
     for db in ("openbeautyfacts", "openproductsfacts"):
         aioclient_mock.get(f"https://world.{db}.org/cgi/search.pl", json={"products": []})
     aioclient_mock.get(base + "1/front.200.jpg", content=JPEG)
@@ -2865,6 +2866,7 @@ async def test_photo_search_by_name(hass, setup, hass_ws_client, aioclient_mock)
 
     # Datenbank nicht erreichbar: leere Liste, reached False
     aioclient_mock.clear_requests()
+    aioclient_mock.get("https://search.openfoodfacts.org/search", status=503)
     for db in ("openfoodfacts", "openbeautyfacts", "openproductsfacts"):
         aioclient_mock.get(f"https://world.{db}.org/cgi/search.pl", status=503)
     await client.send_json({"id": 8, "type": "einkaufsliste/photo/search", "query": "Brezel"})
@@ -4171,6 +4173,37 @@ async def test_cleanup_skip_stores(hass: HomeAssistant, setup) -> None:
     assert m.as_dict()["settings"]["cleanup_skip_stores"] == []
 
 
+async def test_cleanup_pin(hass: HomeAssistant, setup) -> None:
+    """📌 Anpinnen: nur mit Schalter, angepinnte Artikel bleiben beim Aufräumen offen; Schalter aus = Pins zählen nicht."""
+    m = mgr(hass)
+    m.set_cleanup(min_age_days=0)
+    assert m.as_dict()["settings"]["pin_on"] is False  # Standard aus
+    a = m.add_item("Klopapier")
+    b = m.add_item("Brot")
+    with pytest.raises(ValueError):
+        m.pin_item(a["id"], True)  # Schalter aus → kein Anpinnen
+    res = m.set_cleanup(pin_on=True)
+    assert res["on"] and m.as_dict()["settings"]["pin_on"] is True
+    assert m._to_storage()["cleanup"]["pin_on"] is True
+    m.pin_item(a["id"], True)
+    assert a["pinned"] is True and m.log[-1]["a"] == "pin"
+    m.cleanup()
+    assert not a["checked"] and b["checked"]
+    m.set_cleanup(min_age_days=3)  # andere Einstellungen lassen den Schalter stehen
+    assert m.pin_on
+    m.set_cleanup(pin_on=False, min_age_days=0)
+    assert a.get("pinned")  # Pin bleibt gemerkt …
+    m.cleanup()
+    assert a["checked"]  # … zählt aber nicht, solange der Schalter aus ist
+    m.set_cleanup(pin_on=True)
+    c = m.add_item("Salz")
+    m.pin_item(c["id"], True)
+    m.cleanup(force=True)  # „Alles abhaken“ nimmt auch Angepinntes mit
+    assert c["checked"]
+    m.pin_item(c["id"], False)
+    assert "pinned" not in c and m.log[-1]["a"] == "unpin"
+
+
 async def test_cleanup_settings_ws(hass, setup, hass_ws_client) -> None:
     client = await hass_ws_client(hass)
     await client.send_json({"id": 1, "type": "einkaufsliste/cleanup/settings", "on": False})
@@ -4780,6 +4813,90 @@ async def test_geschaeft_egal_wo_abschalten(hass, setup, hass_ws_client) -> None
     await client.send_json({"id": 2, "type": "einkaufsliste/group/update", "kind": "stores", "group_id": aldi, "no_any": False})
     assert (await client.receive_json())["success"]
     assert "no_any" not in m.store_by_id(aldi)
+
+
+async def test_nicht_bei_pro_artikel(hass, setup, hass_ws_client) -> None:
+    """🚫 „Nicht bei …“: ein „Egal wo“-Artikel fehlt nur in den abgehakten Geschäften (Issue #45)."""
+    from custom_components.einkaufsliste.guest import visible_items  # noqa: PLC0415
+
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    aldi, netto = m.find_store("Aldi"), m.find_store("Netto")
+    # Aktion: Geschäftsnamen -> IDs
+    res = await hass.services.async_call(
+        DOMAIN, "add_item", {"name": "Cola", "not_in": ["Aldi"]}, blocking=True, return_response=True
+    )
+    cola = m.get_item(res["item"]["id"])
+    assert cola["store_id"] is None and cola["not_in"] == [aldi]
+    assert not m.shows_in_store(cola, m.store_by_id(aldi))
+    assert m.shows_in_store(cola, m.store_by_id(netto))
+    milch = m.add_item("Milch")
+    assert "not_in" not in milch and m.shows_in_store(milch, m.store_by_id(aldi))
+    # 🎫 Gast-Link für Aldi sieht Milch, aber keine Cola
+    names = [i["name"] for i in visible_items(m, {"store_id": aldi, "created": ""})]
+    assert "Milch" in names and "Cola" not in names
+    # ✏️ Bearbeiten per WebSocket: Netto dazu, Unsinn fliegt raus
+    await client.send_json({"id": 1, "type": "einkaufsliste/item/update", "item_id": cola["id"], "not_in": [netto, "gibtsnicht", aldi]})
+    assert (await client.receive_json())["success"]
+    assert cola["not_in"] == [netto, aldi]  # Reihenfolge wie die Geschäfte
+    # leer = Feld ganz weg
+    await client.send_json({"id": 2, "type": "einkaufsliste/item/update", "item_id": cola["id"], "not_in": []})
+    assert (await client.receive_json())["success"]
+    assert "not_in" not in cola
+    # festes Geschäft: „Nicht bei …“ verschwindet
+    m.update_item(cola["id"], not_in=[aldi])
+    m.update_item(cola["id"], store_id=netto)
+    assert "not_in" not in cola
+    # Geschäft gelöscht: wird aus „Nicht bei …“ gestrichen
+    m.update_item(cola["id"], store_id=None, not_in=[aldi, netto])
+    m.remove_group("stores", aldi)
+    assert cola["not_in"] == [netto]
+    # Tippfehler im Geschäftsnamen = Fehler
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(DOMAIN, "add_item", {"name": "Wasser", "not_in": ["Gibtsnicht"]}, blocking=True)
+
+
+async def test_nicht_bei_bleibt_gemerkt(hass, setup) -> None:
+    """🚫 „Nicht bei …“ hängt am Produkt (auch nach Aufräumen/Löschen); im Geschäft abgehakt bleibt er „Egal wo“."""
+    m = mgr(hass)
+    aldi, netto = m.find_store("Aldi"), m.find_store("Netto")
+    cola = m.add_item("Cola", not_in=[aldi])
+    # ganz weg und neu eingetragen: Haken kommen aus dem Gedächtnis
+    m.remove_item(cola["id"])
+    neu = m.add_item("cola")
+    assert neu["store_id"] is None and neu["not_in"] == [aldi]
+    # Haken raus beim Bearbeiten = auch vergessen
+    m.update_item(neu["id"], not_in=[])
+    m.remove_item(neu["id"])
+    assert "not_in" not in m.add_item("Cola")
+    # im Netto-Reiter abgehakt: bleibt „Egal wo, nicht bei Aldi“, Kauf zählt für „Gibt's bei“ (ohne Vorschlag)
+    saft = m.add_item("Saft", not_in=[aldi])
+    m.set_checked(saft["id"], True, at_store=netto)
+    assert saft["store_id"] is None and saft["not_in"] == [aldi]
+    hist = m.history_for("Saft")
+    assert netto in hist.get("stores", []) and "usual" not in hist
+    # ohne Haken zieht ein „Egal wo“-Artikel wie gewohnt ins Geschäft um
+    wasser = m.add_item("Wasser")
+    m.set_checked(wasser["id"], True, at_store=netto)
+    assert wasser["store_id"] == netto
+    # Geschäft gelöscht: auch aus dem Gedächtnis gestrichen
+    tee = m.add_item("Tee", not_in=[aldi, netto])
+    m.remove_group("stores", aldi)
+    assert m.history_for("Tee")["not_in"] == [netto]
+    m.remove_item(tee["id"])
+    assert m.add_item("Tee")["not_in"] == [netto]
+
+
+async def test_remove_item_alle_treffer(hass, setup) -> None:
+    """🧹 remove_item mit all: true löscht jeden Artikel mit dem Namen, ohne all nur den ersten."""
+    m = mgr(hass)
+    m.add_item("Cola", store_id=m.find_store("Aldi"))
+    m.add_item("Cola")
+    m.add_item("Cola", store_id=m.find_store("Netto"))
+    await hass.services.async_call(DOMAIN, "remove_item", {"name": "Cola"}, blocking=True)
+    assert sum(i["name"] == "Cola" for i in m.items) == 2
+    await hass.services.async_call(DOMAIN, "remove_item", {"name": "cola", "all": True}, blocking=True)
+    assert not any(i["name"] == "Cola" for i in m.items)
 
 
 async def test_geschaeft_nicht_unter_alle(hass, setup, hass_ws_client) -> None:
@@ -5728,3 +5845,101 @@ async def test_service_get_update_and_groups(hass, setup):
     )
     assert m.store_by_id(res["item"]["store_id"])["name"] == "Fressnapf"
     assert m.category_by_id(res["item"]["category_id"])["name"] == "Haustier"
+
+
+# ---------------------------------------------------------------- 🆕 Beta 2.76.29
+async def test_offers_foreign_store(hass, setup, aioclient_mock) -> None:
+    """🌍 #43: Geschäft im Nachbarland (Land + PLZ aus der Adresse) wird zusätzlich auf marktguru.<land> gesucht."""
+    from custom_components.einkaufsliste import offers as mod
+    m = mgr(hass)
+    hass.config.country = "AT"
+    kauf = m.store_by_id(m.ensure_group("stores", "Kaufland")["id"])
+    spar = m.store_by_id(m.ensure_group("stores", "Spar")["id"])
+    kauf.update(country="DE", address="Kemptener Str. 1, 88131 Lindau")
+    # ohne Adresse oder mit Land = HA-Land: keine zweite Suche
+    assert mod.foreign_spots(m, "at") == {("de", "88131"): ["kaufland"]}
+    spar["country"] = "AT"
+    spar["address"] = "Hauptstr. 1, 6900 Bregenz"
+    assert mod.foreign_spots(m, "at") == {("de", "88131"): ["kaufland"]}
+    assert mod.foreign_spots(m, "at", [spar["id"]]) == {}  # „Nur diese Geschäfte“ ohne Kaufland
+    m.add_item("Butter")
+    def off(i, who, price):
+        return {"id": i, "price": price, "product": {"name": "Butter"}, "advertisers": [{"name": who}],
+                "validityDates": [{"from": "2026-01-01T00:00:00Z", "to": "2099-01-01T00:00:00Z"}], "description": ""}
+    aioclient_mock.get("https://api.marktguru.at/api/v1/offers/search", json={"results": [off(1, "Spar", 2.29)]})
+    aioclient_mock.get("https://api.marktguru.de/api/v1/offers/search",
+                       json={"results": [off(2, "Kaufland", 1.49), off(3, "Lidl", 1.39)]})
+    m.offers_cfg = {"enabled": True, "zip": "6900", "stores": [], "hours": 6, "key": "KEYAT", "keys": {"de": "KEYDE"}}
+    with patch("custom_components.einkaufsliste.offers.asyncio.sleep"):
+        res = await m.offers.run()
+    assert res["ok"]
+    butter = m.offers_data["butter"]
+    assert [(o["r"], o.get("ctry")) for o in butter] == [("Kaufland", "DE"), ("Spar", None)]  # Lidl DE gehört zu keinem Geschäft
+    assert butter[0]["img"].startswith("https://cdn.marktguru.de/")
+    assert m.as_dict()["settings"]["offers"]["foreign"] == ["Kaufland (DE 88131)"]
+    de_calls = [c for c in aioclient_mock.mock_calls if "api.marktguru.de" in str(c[1]) and "q=Butter" in str(c[1])]
+    assert de_calls and all("88131" in str(c[1]) for c in de_calls)
+    # Foto übernehmen geht auch von marktguru.de, obwohl HA auf AT steht
+    assert mod.trusted_url("https://cdn.marktguru.de/x.webp", "de")
+
+
+async def test_timer_notify(hass, setup) -> None:
+    """⏰ Kochtimer fertig → Handy-Meldung ohne eigene Automation; „nur an den Starter“ über Person + App-Gerät."""
+    from pytest_homeassistant_custom_component.common import async_mock_service
+    m = mgr(hass)
+    calls_a = async_mock_service(hass, "notify", "mobile_app_marco")
+    calls_b = async_mock_service(hass, "notify", "mobile_app_jana")
+    hass.states.async_set("person.marco", "home", {"user_id": "u1", "device_trackers": ["device_tracker.marco"]})
+    assert m.set_timer_notify(["notify.mobile_app_marco", "mobile_app_jana", "bös artig!"]) == {
+        "services": ["mobile_app_marco", "mobile_app_jana"], "starter": False}
+    t = m.start_timer(60, "Ei", by_id="u1")
+    m._timer_due(t["id"])
+    await hass.async_block_till_done()
+    assert len(calls_a) == 1 and len(calls_b) == 1
+    assert calls_a[0].data["title"] == "⏲️ Timer fertig" and calls_a[0].data["message"] == "Ei"
+    # nur an den Starter
+    m.set_timer_notify(["mobile_app_marco", "mobile_app_jana"], starter=True)
+    t = m.start_timer(60, "Nudeln", by_id="u1")
+    m._timer_due(t["id"])
+    await hass.async_block_till_done()
+    assert len(calls_a) == 2 and len(calls_b) == 1
+    # Starter ohne angekreuztes Handy: alle bekommen es
+    t = m.start_timer(60, "Reis", by_id="u9")
+    m._timer_due(t["id"])
+    await hass.async_block_till_done()
+    assert len(calls_a) == 3 and len(calls_b) == 2
+    # leer = aus, gespeichert
+    assert m.set_timer_notify([]) is None and m.as_dict()["settings"]["timer_notify"] is None
+    t = m.start_timer(60, "Tee")
+    m._timer_due(t["id"])
+    await hass.async_block_till_done()
+    assert len(calls_a) == 3
+
+
+async def test_photo_search_new_then_old(hass, setup, aioclient_mock):
+    """🔎 Neue OFF-Suche ohne Bild-Adresse → Foto über den Barcode; neue Suche kaputt → alte als Ersatz; Name + Notiz zusätzlich."""
+    from custom_components.einkaufsliste.barcode import async_search_photos
+    m = mgr(hass)
+    base = "https://images.openfoodfacts.org/images/products/"
+    aioclient_mock.get("https://search.openfoodfacts.org/search", json={"hits": [{"code": "42", "product_name": "Brezel"}]})
+    aioclient_mock.get("https://world.openfoodfacts.org/api/v2/product/42.json",
+                       json={"product": {"image_front_url": base + "42/front.400.jpg"}})
+    aioclient_mock.get(base + "42/front.400.jpg", content=JPEG)
+    for db in ("openbeautyfacts", "openproductsfacts"):
+        aioclient_mock.get(f"https://world.{db}.org/cgi/search.pl", json={"products": []})
+    res = await async_search_photos(hass, m, "Brezel", "Bäcker Max")
+    assert [r["url"] for r in res["results"]] == [base + "42/front.400.jpg"] and res["reached"]
+    queries = [c[1].query.get("q") for c in aioclient_mock.mock_calls if "search.openfoodfacts.org" in str(c[1])]
+    assert queries == ["Brezel", "Brezel Bäcker Max"]  # erst der Name allein, dann mit Notiz
+    # neue Suche kaputt: alte cgi/search.pl springt ein
+    aioclient_mock.clear_requests()
+    aioclient_mock.get("https://search.openfoodfacts.org/search", status=500)
+    aioclient_mock.get("https://world.openfoodfacts.org/cgi/search.pl",
+                       json={"products": [{"code": "7", "product_name": "Brezel", "image_front_url": base + "7/f.jpg"}]})
+    for db in ("openbeautyfacts", "openproductsfacts"):
+        aioclient_mock.get(f"https://world.{db}.org/cgi/search.pl", json={"products": []})
+    aioclient_mock.get(base + "7/f.jpg", content=JPEG)
+    res = await async_search_photos(hass, m, "Brezel")
+    assert [r["url"] for r in res["results"]] == [base + "7/f.jpg"]
+    old = [c for c in aioclient_mock.mock_calls if "cgi/search.pl" in str(c[1]) and "openfoodfacts" in str(c[1])]
+    assert old and old[0][1].query.get("page_size") == "24"
